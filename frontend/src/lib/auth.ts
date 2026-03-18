@@ -36,7 +36,7 @@ export const useAuthStore = create<AuthState>()(
 
       isAuthenticated: () => get().token !== null,
 
-      isAdmin: () => get().user?.role === "admin" ?? false,
+      isAdmin: () => get().user?.role === "admin",
     }),
     {
       name: "langmatinitje-auth",
