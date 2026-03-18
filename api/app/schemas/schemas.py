@@ -386,6 +386,88 @@ class TokenResponse(BaseModel):
 # Contributions
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Sources (admin)
+# ---------------------------------------------------------------------------
+
+class SourceStats(BaseModel):
+    nb_mots:        int = 0
+    nb_corpus:      int = 0
+    nb_expressions: int = 0
+    nb_definitions: int = 0
+
+
+class SourceOut(BaseModel):
+    id:                    int
+    nom:                   str
+    url:                   str
+    type:                  str
+    robots_ok:             bool
+    actif:                 bool
+    auto_scrape:           bool
+    scrape_interval_hours: int
+    scrape_at:             Optional[datetime] = None
+    created_at:            datetime
+    stats:                 SourceStats = SourceStats()
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SourceCreate(BaseModel):
+    nom:                   str
+    url:                   str
+    type:                  str = "texte"
+    robots_ok:             bool = False
+    actif:                 bool = True
+    auto_scrape:           bool = False
+    scrape_interval_hours: int  = 24
+
+
+class SourceUpdate(BaseModel):
+    nom:                   Optional[str]  = None
+    url:                   Optional[str]  = None
+    type:                  Optional[str]  = None
+    robots_ok:             Optional[bool] = None
+    actif:                 Optional[bool] = None
+    auto_scrape:           Optional[bool] = None
+    scrape_interval_hours: Optional[int]  = None
+
+
+# ---------------------------------------------------------------------------
+# Scrape jobs (admin)
+# ---------------------------------------------------------------------------
+
+class ScrapeJobOut(BaseModel):
+    id:           int
+    source_id:    Optional[int]      = None
+    url:          Optional[str]      = None
+    job_type:     str
+    status:       str
+    nb_inserted:  int
+    preview_text: Optional[str]      = None
+    error_msg:    Optional[str]      = None
+    started_at:   Optional[datetime] = None
+    finished_at:  Optional[datetime] = None
+    created_at:   datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ScrapeUrlRequest(BaseModel):
+    url:       str
+    source_id: Optional[int] = None   # rattacher à une source existante
+
+
+class ScrapeYoutubeRequest(BaseModel):
+    youtube_url: str
+
+
+class YoutubeConfirmRequest(BaseModel):
+    texte:       str
+    table_cible: str   # 'corpus' | 'expression'
+    domaine:     Optional[str] = "lòt"   # pour corpus seulement
+
+
 class ContributionCreate(BaseModel):
     table_cible: str
     entite_id: int

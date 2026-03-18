@@ -119,15 +119,50 @@ export interface Contribution {
   modere_at:       string | null;
 }
 
+export interface SourceStats {
+  nb_mots:        number;
+  nb_corpus:      number;
+  nb_expressions: number;
+  nb_definitions: number;
+}
+
+export interface Source {
+  id:                    number;
+  nom:                   string;
+  url:                   string;
+  type:                  string;
+  robots_ok:             boolean;
+  actif:                 boolean;
+  auto_scrape:           boolean;
+  scrape_interval_hours: number;
+  scrape_at:             string | null;
+  created_at:            string;
+  stats:                 SourceStats;
+}
+
+export interface ScrapeJob {
+  id:           number;
+  source_id:    number | null;
+  url:          string | null;
+  job_type:     string;
+  status:       "pending" | "running" | "done" | "error";
+  nb_inserted:  number;
+  preview_text: string | null;
+  error_msg:    string | null;
+  started_at:   string | null;
+  finished_at:  string | null;
+  created_at:   string;
+}
+
 // ============================================================
 // Helpers
 // ============================================================
 
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
+    ...options,
     cache:   "no-store",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    ...options,
   });
 
   if (!res.ok) {
@@ -362,4 +397,66 @@ export const adminApi = {
       method:  "PUT",
       headers: authHeaders(token),
     }),
+
+  // --- Sources ---
+  getSources: (token: string): Promise<Source[]> =>
+    apiFetch(`${FASTAPI}/admin/sources`, { headers: authHeaders(token) }),
+
+  createSource: (token: string, data: Partial<Source>): Promise<Source> =>
+    apiFetch(`${FASTAPI}/admin/sources`, {
+      method:  "POST",
+      headers: authHeaders(token),
+      body:    JSON.stringify(data),
+    }),
+
+  updateSource: (token: string, id: number, data: Partial<Source>): Promise<Source> =>
+    apiFetch(`${FASTAPI}/admin/sources/${id}`, {
+      method:  "PUT",
+      headers: authHeaders(token),
+      body:    JSON.stringify(data),
+    }),
+
+  deleteSource: (token: string, id: number): Promise<void> =>
+    apiFetch(`${FASTAPI}/admin/sources/${id}`, {
+      method:  "DELETE",
+      headers: authHeaders(token),
+    }),
+
+  // --- Scrape jobs ---
+  scrapeUrl: (token: string, url: string, sourceId?: number): Promise<ScrapeJob> =>
+    apiFetch(`${FASTAPI}/admin/scrape/url`, {
+      method:  "POST",
+      headers: authHeaders(token),
+      body:    JSON.stringify({ url, source_id: sourceId ?? null }),
+    }),
+
+  scrapeYoutube: (token: string, youtube_url: string): Promise<ScrapeJob> =>
+    apiFetch(`${FASTAPI}/admin/scrape/youtube`, {
+      method:  "POST",
+      headers: authHeaders(token),
+      body:    JSON.stringify({ youtube_url }),
+    }),
+
+  confirmYoutube: (
+    token: string,
+    jobId: number,
+    data: { texte: string; table_cible: string; domaine?: string }
+  ): Promise<{ inserted: boolean; table: string; id: number }> =>
+    apiFetch(`${FASTAPI}/admin/scrape/youtube/${jobId}/confirm`, {
+      method:  "POST",
+      headers: authHeaders(token),
+      body:    JSON.stringify(data),
+    }),
+
+  runAutoScrape: (token: string): Promise<{ launched: number; job_ids: number[] }> =>
+    apiFetch(`${FASTAPI}/admin/scrape/run-auto`, {
+      method:  "POST",
+      headers: authHeaders(token),
+    }),
+
+  getJobs: (token: string): Promise<ScrapeJob[]> =>
+    apiFetch(`${FASTAPI}/admin/scrape/jobs`, { headers: authHeaders(token) }),
+
+  getJob: (token: string, id: number): Promise<ScrapeJob> =>
+    apiFetch(`${FASTAPI}/admin/scrape/jobs/${id}`, { headers: authHeaders(token) }),
 };

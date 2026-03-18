@@ -33,6 +33,13 @@ const SECTIONS = [
     color: "border-orange-200 hover:border-orange-400",
     icon:  "✅",
   },
+  {
+    href:  "/recuperation-data",
+    title: "Récupération de données",
+    desc:  "Scraper des sites créoles, transcrire YouTube, gérer les sources automatiques.",
+    color: "border-teal-200 hover:border-teal-400",
+    icon:  "🔍",
+  },
 ];
 
 export default function AdminDashboardPage() {

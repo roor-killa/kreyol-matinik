@@ -1,5 +1,8 @@
 FROM python:3.12-slim
 
+# ffmpeg requis par yt-dlp et faster-whisper
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY requirements.txt .

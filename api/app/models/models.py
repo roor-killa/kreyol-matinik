@@ -131,6 +131,8 @@ class Source(Base):
     type = Column(_pg_enum(SourceType, "source_type"), nullable=False, default="texte")
     robots_ok = Column(Boolean, nullable=False, default=False)
     actif = Column(Boolean, nullable=False, default=True)
+    auto_scrape = Column(Boolean, nullable=False, default=False)
+    scrape_interval_hours = Column(Integer, nullable=False, default=24)
     scrape_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
@@ -141,6 +143,7 @@ class Source(Base):
     expressions = relationship("Expression", back_populates="source")
     medias = relationship("Media", back_populates="source")
     corpus = relationship("Corpus", back_populates="source")
+    scrape_jobs = relationship("ScrapeJob", back_populates="source")
 
 
 class Mot(Base):
@@ -262,6 +265,31 @@ class Contributeur(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
     user = relationship("User", back_populates="contributeur")
+
+
+class ScrapeJobStatus(str, enum.Enum):
+    pending = "pending"
+    running = "running"
+    done    = "done"
+    error   = "error"
+
+
+class ScrapeJob(Base):
+    __tablename__ = "scrape_jobs"
+
+    id           = Column(Integer, primary_key=True)
+    source_id    = Column(Integer, ForeignKey("sources.id", ondelete="SET NULL"), nullable=True)
+    url          = Column(String(500))
+    job_type     = Column(String(50), nullable=False, default="url")
+    status       = Column(_pg_enum(ScrapeJobStatus, "scrape_job_status"), nullable=False, default=ScrapeJobStatus.pending)
+    nb_inserted  = Column(Integer, nullable=False, default=0)
+    preview_text = Column(Text)
+    error_msg    = Column(Text)
+    started_at   = Column(DateTime(timezone=True))
+    finished_at  = Column(DateTime(timezone=True))
+    created_at   = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    source = relationship("Source", back_populates="scrape_jobs")
 
 
 class Contribution(Base):

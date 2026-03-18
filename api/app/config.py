@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 10080  # 7 jours
 
+    # Scraping automatique
+    auto_scrape_hour: int = 3    # heure UTC du déclenchement quotidien
+    whisper_model: str = "base"  # tiny | base | small | medium
+
     model_config = SettingsConfigDict(
         # Try multiple locations: Docker WORKDIR /app, running from api/, from kreyol-matinik/
         env_file=("../../.env", "../.env", ".env"),

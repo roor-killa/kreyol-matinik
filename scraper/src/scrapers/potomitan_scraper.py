@@ -1,18 +1,18 @@
-"""Scraper pour potomitan.info — contes et poèmes créoles.
+"""Scraper pour potomitan.info — contes, poèmes et proverbes créoles.
 
 robots.txt : Crawl-delay de 60 secondes obligatoire.
 
 Sections scrappées :
-    - contes  : /atelier/contes/  → liste d'articles → texte complet
-    - poemes  : /poemes/index.php → liste par auteur → texte complet
-
-Sections exclues (v1) :
-    - dictionnaire : entrées en PDF, nécessite un parser dédié
+    - contes    : /atelier/contes/        → liste d'articles → texte complet
+    - poemes    : /poemes/index.php       → liste par auteur → texte complet
+    - proverbes : /duranty/belpoveb.php   → page unique, 836+ proverbes numérotés
 
 Structure HTML des pages de contenu :
     - Pas de classes/IDs sémantiques sur ce site (HTML statique années 2000)
-    - Contes   : titres en <h2>, texte en <p> + <blockquote>
-    - Poèmes   : titre en <h1>/<h2>, texte en nœuds texte bruts entre heading et pied de page
+    - Contes    : titres en <h2>, texte en <p> + <blockquote>
+    - Poèmes    : titre en <h1>/<h2>, texte en nœuds texte bruts entre heading et pied de page
+    - Proverbes : <h4> numéroté + <p> avec proverbes créoles en <em>«guillemets»
+                  Page en ISO-8859-1, une seule URL, pas de pagination
 """
 
 import logging
@@ -50,8 +50,9 @@ class PotomitanScraper(BaseScraper):
 
     # URLs d'index par section
     _SECTION_URLS: dict[str, str] = {
-        "contes": "/atelier/contes/",
-        "poemes": "/poemes/index.php",
+        "contes":    "/atelier/contes/",
+        "poemes":    "/poemes/index.php",
+        "proverbes": "/duranty/belpoveb.php",
     }
 
     def __init__(
@@ -93,6 +94,8 @@ class PotomitanScraper(BaseScraper):
                 items = self._scrape_contes(index_url, max_items=max_pages)
             elif section == "poemes":
                 items = self._scrape_poemes(index_url, max_items=max_pages)
+            elif section == "proverbes":
+                items = self._scrape_proverbes(index_url, max_items=max_pages)
             else:
                 items = []
 
@@ -116,6 +119,21 @@ class PotomitanScraper(BaseScraper):
             Liste vide (parsing délégué aux méthodes spécifiques).
         """
         return []
+
+    def to_document(self, item: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "source":       "potomitan",
+            "doc_type":     item.get("categorie", "conte"),
+            "title":        item.get("titre", ""),
+            "content":      item.get("texte_creole", ""),
+            "url":          item.get("url") or None,
+            "published_at": item.get("date_publication") or None,
+            "metadata":     {
+                "titre_fr": item.get("titre_fr", ""),
+                "auteur":   item.get("auteur", ""),
+                "explication": item.get("explication", ""),
+            },
+        }
 
     # ------------------------------------------------------------------
     # Contes
@@ -369,3 +387,84 @@ class PotomitanScraper(BaseScraper):
             "date_publication": "",
             "auteur": auteur,
         }
+
+    # ------------------------------------------------------------------
+    # Proverbes
+    # ------------------------------------------------------------------
+
+    def _scrape_proverbes(
+        self, page_url: str, max_items: int = 0
+    ) -> list[dict[str, Any]]:
+        """Scrape la page unique des proverbes créoles (belpoveb.php).
+
+        La page contient 836+ proverbes numérotés structurés ainsi :
+            <h4>Bel poveb kréyol N</h4>
+            <p>contexte <em>«proverbe créole»</em> commentaire</p>
+
+        Chaque balise <em> contient un proverbe distinct. Le texte hors <em>
+        dans le même <p> constitue l'explication/contexte.
+
+        Args:
+            page_url: URL de la page des proverbes.
+            max_items: Limite du nombre d'entrées (0 = illimité).
+
+        Returns:
+            Liste de dicts avec clé 'categorie' = 'proverbe'.
+        """
+        import requests
+
+        # La page est encodée en ISO-8859-1
+        try:
+            r = requests.get(page_url, headers=self.headers, timeout=30)
+            r.raise_for_status()
+            r.encoding = "iso-8859-1"
+            soup = BeautifulSoup(r.text, "lxml")
+        except Exception as e:
+            logger.error("Erreur fetch proverbes : %s", e)
+            return []
+
+        entries: list[dict[str, Any]] = []
+
+        for h4 in soup.find_all("h4"):
+            numero_txt = h4.get_text(strip=True)  # ex: "Bel poveb kréyol 40"
+
+            # Trouver le <p> qui suit immédiatement le <h4>
+            p_tag = h4.find_next_sibling("p")
+            if not p_tag:
+                continue
+
+            # Extraire les proverbes créoles balisés dans <em>
+            em_tags = p_tag.find_all("em")
+            if not em_tags:
+                continue
+
+            # Texte complet du paragraphe sans les balises → explication
+            full_text = re.sub(r"\s+", " ", p_tag.get_text(separator=" ", strip=True))
+
+            for em in em_tags:
+                texte_creole = re.sub(r"\s+", " ", em.get_text(strip=True))
+                # Nettoyer les guillemets typographiques
+                texte_creole = texte_creole.strip("«»\u00ab\u00bb").strip()
+                if not texte_creole or len(texte_creole) < 5:
+                    continue
+
+                entries.append({
+                    "source": "potomitan.info",
+                    "source_id": self.source_id,
+                    "url": page_url,
+                    "categorie": "proverbe",
+                    "titre": numero_txt,
+                    "titre_fr": "",
+                    "texte_creole": texte_creole,
+                    "texte_fr": "",
+                    "explication": full_text,
+                    "audio_url": "",
+                    "hashtags": [],
+                    "date_publication": "",
+                })
+
+                if max_items and len(entries) >= max_items:
+                    return entries
+
+        logger.info("Proverbes extraits : %d", len(entries))
+        return entries

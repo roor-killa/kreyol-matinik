@@ -19,3 +19,11 @@ bcrypt>=4.0.0
 httpx>=0.27.0
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
+
+# Scraping & transcription
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+yt-dlp>=2024.1.0
+faster-whisper>=1.0.0
+apscheduler>=3.10.0

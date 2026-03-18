@@ -178,6 +178,17 @@ class PawoloTekScraper(BaseScraper):
             self._notify("error", {"url": url, "error": str(e)})
             return None
 
+    def to_document(self, item: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "source":       "pawolotek",
+            "doc_type":     item.get("categorie", "lexique"),
+            "title":        item.get("titre", ""),
+            "content":      item.get("texte_creole", ""),
+            "url":          item.get("url") or None,
+            "published_at": item.get("date_publication") or None,
+            "metadata":     {"hashtags": item.get("hashtags", []), "audio_url": item.get("audio_url", "")},
+        }
+
     def _parse_rss_item(self, item_tag: Any) -> dict[str, Any] | None:
         """Extrait les données d'un élément <item> RSS.
 
