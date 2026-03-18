@@ -1,0 +1,4 @@
+# Phase 4 — Export HuggingFace
+datasets>=2.18.0      # export Parquet + push to hub
+huggingface_hub>=0.22 # huggingface-cli login/upload
+pyarrow>=15.0         # requis par datasets pour Parquet

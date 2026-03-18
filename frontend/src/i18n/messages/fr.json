@@ -1,0 +1,114 @@
+{
+  "nav": {
+    "home": "Accueil",
+    "dictionary": "Dictionnaire",
+    "corpus": "Corpus",
+    "expressions": "Expressions",
+    "contribute": "Contribuer",
+    "profile": "Profil",
+    "admin": "Admin",
+    "login": "Connexion",
+    "register": "Inscription",
+    "logout": "Déconnexion",
+    "chat": "Chat"
+  },
+  "home": {
+    "title": "Lang Matinitjé",
+    "subtitle": "Dictionnaire en ligne du créole martiniquais",
+    "wordOfDay": "Mot du jour",
+    "searchPlaceholder": "Rechercher un mot en créole ou français…",
+    "explore": "Explorer le dictionnaire"
+  },
+  "dictionary": {
+    "title": "Dictionnaire",
+    "searchPlaceholder": "Rechercher…",
+    "noResults": "Aucun résultat trouvé.",
+    "loading": "Chargement…",
+    "wordDetail": "Détail du mot",
+    "translations": "Traductions",
+    "definitions": "Définitions",
+    "examples": "Exemples",
+    "category": "Catégorie grammaticale",
+    "phonetic": "Phonétique"
+  },
+  "corpus": {
+    "title": "Corpus",
+    "subtitle": "Phrases et textes en créole martiniquais",
+    "domain": "Domaine"
+  },
+  "expressions": {
+    "title": "Expressions",
+    "subtitle": "Expressions idiomatiques créoles"
+  },
+  "contribute": {
+    "title": "Contribuer",
+    "subtitle": "Proposez une correction ou une amélioration",
+    "table": "Table cible",
+    "entityId": "Identifiant de l'entrée",
+    "newContent": "Nouveau contenu (JSON)",
+    "submit": "Soumettre",
+    "success": "Contribution envoyée, merci !",
+    "loginRequired": "Connectez-vous pour contribuer."
+  },
+  "auth": {
+    "login": {
+      "title": "Connexion",
+      "email": "Adresse e-mail",
+      "password": "Mot de passe",
+      "submit": "Se connecter",
+      "noAccount": "Pas de compte ?",
+      "register": "S'inscrire"
+    },
+    "register": {
+      "title": "Inscription",
+      "name": "Nom d'affichage",
+      "email": "Adresse e-mail",
+      "password": "Mot de passe",
+      "confirm": "Confirmer le mot de passe",
+      "submit": "Créer un compte",
+      "hasAccount": "Déjà un compte ?",
+      "login": "Se connecter"
+    },
+    "errors": {
+      "invalid": "Identifiants invalides.",
+      "emailTaken": "Cette adresse e-mail est déjà utilisée."
+    }
+  },
+  "profile": {
+    "title": "Mon profil",
+    "contributions": "Mes contributions",
+    "nbContrib": "Contributions soumises",
+    "trusted": "Contributeur de confiance",
+    "pending": "En attente",
+    "validated": "Validée",
+    "rejected": "Rejetée",
+    "delete": "Supprimer",
+    "noContributions": "Aucune contribution pour l'instant."
+  },
+  "admin": {
+    "title": "Modération",
+    "pending": "Contributions en attente",
+    "validate": "Valider",
+    "reject": "Rejeter",
+    "contributor": "Contributeur",
+    "table": "Table",
+    "entity": "Entité",
+    "content": "Contenu proposé",
+    "empty": "Aucune contribution en attente."
+  },
+  "chat": {
+    "title": "Fèfèn — Chatbot créole",
+    "subtitle": "Posez une question en créole ou en français",
+    "placeholder": "Écrivez un mot ou une question…",
+    "send": "Envoyer",
+    "thinking": "Fèfèn réfléchit…",
+    "navLink": "Chat"
+  },
+  "common": {
+    "loading": "Chargement…",
+    "error": "Une erreur est survenue.",
+    "back": "Retour",
+    "save": "Enregistrer",
+    "cancel": "Annuler"
+  }
+}

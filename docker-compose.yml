@@ -1,0 +1,92 @@
+services:
+  db:
+    image: pgvector/pgvector:pg15
+    container_name: langmatinitje_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-langmatinitje}
+      POSTGRES_USER: ${POSTGRES_USER:-creole}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scraper/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./scraper/db/02_documents.sql:/docker-entrypoint-initdb.d/02_documents.sql:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - langmatinitje_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-creole} -d ${POSTGRES_DB:-langmatinitje}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  adminer:
+    image: adminer:4-standalone
+    container_name: langmatinitje_adminer
+    restart: unless-stopped
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+      ADMINER_DESIGN: pepa-linha
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - langmatinitje_net
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: langmatinitje_api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-langmatinitje}
+      POSTGRES_USER: ${POSTGRES_USER:-creole}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      API_KEY: ${API_KEY:-changeme}
+      JWT_SECRET: ${JWT_SECRET:-changeme-jwt-secret-at-least-32-chars!}
+      FEFEN_DATASET_DIR: /app/dataset/data
+      HF_TOKEN: ${HF_TOKEN:-}
+      FEFEN_MODEL: ${FEFEN_MODEL:-mistralai/Mixtral-8x7B-Instruct-v0.1}
+    volumes:
+      - ./dataset/data:/app/dataset/data:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - langmatinitje_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_FASTAPI_URL: "http://localhost:${API_PORT:-8000}/api/v1"
+    container_name: langmatinitje_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      NEXT_PUBLIC_FASTAPI_URL: "http://localhost:${API_PORT:-8000}/api/v1"
+      # URL interne Docker pour le rendu SSR (Server Components)
+      FASTAPI_INTERNAL_URL: "http://api:8000/api/v1"
+      FASTAPI_API_KEY: ${API_KEY:-changeme}
+    depends_on:
+      - api
+    networks:
+      - langmatinitje_net
+
+volumes:
+  postgres_data:
+    name: langmatinitje_postgres_data
+
+networks:
+  langmatinitje_net:
+    name: langmatinitje_net

@@ -1,0 +1,114 @@
+{
+  "nav": {
+    "home": "Home",
+    "dictionary": "Dictionary",
+    "corpus": "Corpus",
+    "expressions": "Expressions",
+    "contribute": "Contribute",
+    "profile": "Profile",
+    "admin": "Admin",
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout",
+    "chat": "Chat"
+  },
+  "home": {
+    "title": "Lang Matinitjé",
+    "subtitle": "Online dictionary of Martinican Creole",
+    "wordOfDay": "Word of the day",
+    "searchPlaceholder": "Search a word in Creole or French…",
+    "explore": "Explore the dictionary"
+  },
+  "dictionary": {
+    "title": "Dictionary",
+    "searchPlaceholder": "Search…",
+    "noResults": "No results found.",
+    "loading": "Loading…",
+    "wordDetail": "Word detail",
+    "translations": "Translations",
+    "definitions": "Definitions",
+    "examples": "Examples",
+    "category": "Grammatical category",
+    "phonetic": "Phonetics"
+  },
+  "corpus": {
+    "title": "Corpus",
+    "subtitle": "Sentences and texts in Martinican Creole",
+    "domain": "Domain"
+  },
+  "expressions": {
+    "title": "Expressions",
+    "subtitle": "Creole idiomatic expressions"
+  },
+  "contribute": {
+    "title": "Contribute",
+    "subtitle": "Suggest a correction or improvement",
+    "table": "Target table",
+    "entityId": "Entry identifier",
+    "newContent": "New content (JSON)",
+    "submit": "Submit",
+    "success": "Contribution submitted, thank you!",
+    "loginRequired": "Please log in to contribute."
+  },
+  "auth": {
+    "login": {
+      "title": "Login",
+      "email": "Email address",
+      "password": "Password",
+      "submit": "Log in",
+      "noAccount": "No account?",
+      "register": "Register"
+    },
+    "register": {
+      "title": "Register",
+      "name": "Display name",
+      "email": "Email address",
+      "password": "Password",
+      "confirm": "Confirm password",
+      "submit": "Create account",
+      "hasAccount": "Already have an account?",
+      "login": "Log in"
+    },
+    "errors": {
+      "invalid": "Invalid credentials.",
+      "emailTaken": "This email address is already taken."
+    }
+  },
+  "profile": {
+    "title": "My profile",
+    "contributions": "My contributions",
+    "nbContrib": "Submitted contributions",
+    "trusted": "Trusted contributor",
+    "pending": "Pending",
+    "validated": "Validated",
+    "rejected": "Rejected",
+    "delete": "Delete",
+    "noContributions": "No contributions yet."
+  },
+  "admin": {
+    "title": "Moderation",
+    "pending": "Pending contributions",
+    "validate": "Validate",
+    "reject": "Reject",
+    "contributor": "Contributor",
+    "table": "Table",
+    "entity": "Entity",
+    "content": "Proposed content",
+    "empty": "No pending contributions."
+  },
+  "chat": {
+    "title": "Fèfèn — Creole Chatbot",
+    "subtitle": "Ask a question in Creole or French",
+    "placeholder": "Type a word or question…",
+    "send": "Send",
+    "thinking": "Fèfèn is thinking…",
+    "navLink": "Chat"
+  },
+  "common": {
+    "loading": "Loading…",
+    "error": "An error occurred.",
+    "back": "Back",
+    "save": "Save",
+    "cancel": "Cancel"
+  }
+}

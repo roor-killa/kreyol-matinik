@@ -1,0 +1,43 @@
+09:08:11 [INFO] src.manager — Création scraper : PawoloTekScraper
+09:08:11 [INFO] lang_matinitje — Démarrage du scraping — source : pawolotek
+09:08:11 [INFO] src.manager — Démarrage : PawoloTekScraper
+09:08:11 [INFO] src.scrapers.pawolotek_scraper — Scraping RSS catégorie : lexique → https://pawolotek.com/index.php/podcast-category/podcast-parler-martiniquais/feed/
+09:08:15 [INFO] src.observers — [pawolotek] FETCH https://pawolotek.com/index.php/podcast-category/podcast-parler-martiniquais/feed/ → 200
+09:08:17 [INFO] src.observers — [pawolotek] FETCH https://pawolotek.com/index.php/podcast-category/podcast-parler-martiniquais/feed/?paged=2 → 200
+09:08:20 [INFO] src.observers — [pawolotek] FETCH https://pawolotek.com/index.php/podcast-category/podcast-parler-martiniquais/feed/?paged=3 → 200
+09:08:22 [INFO] src.observers — [pawolotek] FETCH https://pawolotek.com/index.php/podcast-category/podcast-parler-martiniquais/feed/?paged=4 → 200
+09:08:25 [WARNING] src.scrapers.pawolotek_scraper — HTTP 404 — https://pawolotek.com/index.php/podcast-category/podcast-parler-martiniquais/feed/?paged=5
+09:08:25 [WARNING] src.observers — [pawolotek] ERREUR https://pawolotek.com/index.php/podcast-category/podcast-parler-martiniquais/feed/?paged=5 : 404 Client Error: Not Found for url: https://pawolotek.com/index.php/podcast-category/podcast-parler-martiniquais/feed/?paged=5
+09:08:25 [INFO] src.observers — [pawolotek] PARSE — 37 item(s) extraits
+09:08:25 [INFO] src.scrapers.pawolotek_scraper — Catégorie lexique → 37 items
+09:08:25 [INFO] src.scrapers.pawolotek_scraper — Scraping RSS catégorie : societe → https://pawolotek.com/index.php/podcast-category/podcast-societe-martinique/feed/
+09:08:27 [INFO] src.observers — [pawolotek] FETCH https://pawolotek.com/index.php/podcast-category/podcast-societe-martinique/feed/ → 200
+09:08:30 [WARNING] src.scrapers.pawolotek_scraper — HTTP 404 — https://pawolotek.com/index.php/podcast-category/podcast-societe-martinique/feed/?paged=2
+09:08:30 [WARNING] src.observers — [pawolotek] ERREUR https://pawolotek.com/index.php/podcast-category/podcast-societe-martinique/feed/?paged=2 : 404 Client Error: Not Found for url: https://pawolotek.com/index.php/podcast-category/podcast-societe-martinique/feed/?paged=2
+09:08:30 [INFO] src.observers — [pawolotek] PARSE — 3 item(s) extraits
+09:08:30 [INFO] src.scrapers.pawolotek_scraper — Catégorie societe → 3 items
+09:08:30 [INFO] src.scrapers.pawolotek_scraper — Scraping RSS catégorie : creation → https://pawolotek.com/index.php/podcast-category/creation-sonore-martinique/feed/
+09:08:33 [INFO] src.observers — [pawolotek] FETCH https://pawolotek.com/index.php/podcast-category/creation-sonore-martinique/feed/ → 200
+09:08:35 [WARNING] src.scrapers.pawolotek_scraper — HTTP 404 — https://pawolotek.com/index.php/podcast-category/creation-sonore-martinique/feed/?paged=2
+09:08:35 [WARNING] src.observers — [pawolotek] ERREUR https://pawolotek.com/index.php/podcast-category/creation-sonore-martinique/feed/?paged=2 : 404 Client Error: Not Found for url: https://pawolotek.com/index.php/podcast-category/creation-sonore-martinique/feed/?paged=2
+09:08:35 [INFO] src.observers — [pawolotek] PARSE — 2 item(s) extraits
+09:08:35 [INFO] src.scrapers.pawolotek_scraper — Catégorie creation → 2 items
+09:08:35 [INFO] src.scrapers.pawolotek_scraper — Scraping RSS catégorie : extraits → https://pawolotek.com/index.php/podcast-category/extraits/feed/
+09:08:38 [INFO] src.observers — [pawolotek] FETCH https://pawolotek.com/index.php/podcast-category/extraits/feed/ → 200
+09:08:41 [INFO] src.observers — [pawolotek] FETCH https://pawolotek.com/index.php/podcast-category/extraits/feed/?paged=2 → 200
+09:08:43 [INFO] src.observers — [pawolotek] FETCH https://pawolotek.com/index.php/podcast-category/extraits/feed/?paged=3 → 200
+09:08:46 [INFO] src.observers — [pawolotek] FETCH https://pawolotek.com/index.php/podcast-category/extraits/feed/?paged=4 → 200
+09:08:48 [INFO] src.observers — [pawolotek] FETCH https://pawolotek.com/index.php/podcast-category/extraits/feed/?paged=5 → 200
+09:08:51 [WARNING] src.scrapers.pawolotek_scraper — HTTP 404 — https://pawolotek.com/index.php/podcast-category/extraits/feed/?paged=6
+09:08:51 [WARNING] src.observers — [pawolotek] ERREUR https://pawolotek.com/index.php/podcast-category/extraits/feed/?paged=6 : 404 Client Error: Not Found for url: https://pawolotek.com/index.php/podcast-category/extraits/feed/?paged=6
+09:08:51 [INFO] src.observers — [pawolotek] PARSE — 45 item(s) extraits
+09:08:51 [INFO] src.scrapers.pawolotek_scraper — Catégorie extraits → 45 items
+09:08:51 [INFO] src.observers — [pawolotek] TERMINÉ — 87 item(s) total en 40.5s
+09:08:51 [INFO] src.manager — PawoloTekScraper → 87 entrées collectées
+09:08:51 [INFO] src.base_scraper — Sauvegardé : data/raw/pawolotek_raw.json (87 entrées)
+09:08:52 [INFO] src.base_scraper — Sauvegardé : data/raw/pawolotek_raw.csv (87 entrées)
+09:08:52 [INFO] src.pipeline — Pipeline clean : 87 → 87 entrées
+09:08:52 [INFO] lang_matinitje — Données nettoyées → data/processed/pawolotek_processed.json
+09:08:52 [INFO] src.pipeline — Import BDD : 87 entrées insérées
+09:08:52 [INFO] lang_matinitje — Import PostgreSQL : 87 entrées insérées
+09:08:52 [INFO] lang_matinitje — Terminé — fetches: 11 | erreurs: 4 | items: 87 | durée: 37.1s

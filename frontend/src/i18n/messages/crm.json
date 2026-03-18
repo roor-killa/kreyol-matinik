@@ -1,0 +1,114 @@
+{
+  "nav": {
+    "home": "Akèy",
+    "dictionary": "Diksiyonè",
+    "corpus": "Koripis",
+    "expressions": "Lexpresyon",
+    "contribute": "Kontribyé",
+    "profile": "Pwofil",
+    "admin": "Admin",
+    "login": "Konèkté",
+    "register": "Enskri",
+    "logout": "Dékonèkté",
+    "chat": "Chat"
+  },
+  "home": {
+    "title": "Lang Matinitjé",
+    "subtitle": "Diksionè anlè kréyòl matinitjé",
+    "wordOfDay": "Mo jou-a",
+    "searchPlaceholder": "Chèché an mo an kréyòl oben an fransè…",
+    "explore": "Eksploré diksionè-a"
+  },
+  "dictionary": {
+    "title": "Diksiyone",
+    "searchPlaceholder": "Chèché…",
+    "noResults": "Pa jwenn ayen.",
+    "loading": "Chajman…",
+    "wordDetail": "Detay mo-a",
+    "translations": "Tradiksyon",
+    "definitions": "Définisyon",
+    "examples": "Egzanp",
+    "category": "Katagori gramatical",
+    "phonetic": "Phonétik"
+  },
+  "corpus": {
+    "title": "Koripis",
+    "subtitle": "Fraz épi tèks an kréyòl matinitjé",
+    "domain": "Domèn"
+  },
+  "expressions": {
+    "title": "Lexpresyon",
+    "subtitle": "Lexpresyon idyomatik kréyòl"
+  },
+  "contribute": {
+    "title": "Kontribye",
+    "subtitle": "Propozé an koreksyon oben an amélyorasyon",
+    "table": "Tab sivé",
+    "entityId": "Idantifyan antré-a",
+    "newContent": "Kontni nef (JSON)",
+    "submit": "Voiyé",
+    "success": "Kontribisyon wouvèt, mèsi !",
+    "loginRequired": "Konèkté-w pou kontribyé."
+  },
+  "auth": {
+    "login": {
+      "title": "Koneksyon",
+      "email": "Adrès imèl",
+      "password": "Mo pase",
+      "submit": "Konekte",
+      "noAccount": "Ou pa ni kont ?",
+      "register": "Enskri-w"
+    },
+    "register": {
+      "title": "Enskiripsyon",
+      "name": "Non afichaj",
+      "email": "Adrès imèl",
+      "password": "Mo pase",
+      "confirm": "Konfirmé mo pase",
+      "submit": "Kréyé an kont",
+      "hasAccount": "Ou déjà ni an kont ?",
+      "login": "Konekte-w"
+    },
+    "errors": {
+      "invalid": "Idantifyan invalid.",
+      "emailTaken": "Adrès imèl-la déjà itilizé."
+    }
+  },
+  "profile": {
+    "title": "Mon pwofil",
+    "contributions": "Kontribisyon mwen",
+    "nbContrib": "Kontribisyon wouvèt",
+    "trusted": "Kontribitè konfyans",
+    "pending": "An atant",
+    "validated": "Validé",
+    "rejected": "Rejté",
+    "delete": "Souplé",
+    "noContributions": "Pa ni kontribisyon pou lè-a."
+  },
+  "admin": {
+    "title": "Modérasyon",
+    "pending": "Kontribisyon an atant",
+    "validate": "Validé",
+    "reject": "Rejeté",
+    "contributor": "Kontribitè",
+    "table": "Tab",
+    "entity": "Antité",
+    "content": "Kontni pwopozé",
+    "empty": "Pa ni kontribisyon an atant."
+  },
+  "chat": {
+    "title": "Fèfèn — Chatbot kréyòl",
+    "subtitle": "Mandé an keksyon an kréyòl oben an fransè",
+    "placeholder": "Ékri an mo oben an keksyon…",
+    "send": "Voiyé",
+    "thinking": "Fèfèn ka réfléchi…",
+    "navLink": "Chat"
+  },
+  "common": {
+    "loading": "Chajman…",
+    "error": "An erè pasé.",
+    "back": "Tounen",
+    "save": "Enregistré",
+    "cancel": "Anilé"
+  }
+}

@@ -1,0 +1,290 @@
+"""
+Modèles ORM SQLAlchemy — Lang Matinitjé
+
+Notes sur les ENUMs :
+- create_constraint=False  → pas de CHECK constraint (inutile avec native_enum)
+- native_enum=True         → référence le type ENUM natif PostgreSQL existant
+                            → en SQLite (tests), fall back sur VARCHAR
+- Toutes les classes enum héritent de str, enum.Enum
+  → la valeur EST la chaîne → sérialisation Pydantic sans config supplémentaire
+"""
+import enum
+from datetime import datetime
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Enum as SAEnum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.orm import relationship
+from sqlalchemy.types import JSON
+
+from ..database import Base
+
+
+# ---------------------------------------------------------------------------
+# Helper
+# ---------------------------------------------------------------------------
+
+def _pg_enum(py_enum: type, name: str) -> SAEnum:
+    """Crée un SAEnum qui référence un type ENUM PostgreSQL existant.
+
+    Sur SQLite (tests) : fall back sur VARCHAR (native_enum ignoré).
+    create_constraint=False : ne génère pas de CHECK constraint.
+    """
+    return SAEnum(py_enum, name=name, create_constraint=False, native_enum=True)
+
+
+# ---------------------------------------------------------------------------
+# Python Enums (str subclass → valeur = chaîne SQL)
+# ---------------------------------------------------------------------------
+
+class SourceType(str, enum.Enum):
+    texte = "texte"
+    audio = "audio"
+    video = "video"
+    mixte = "mixte"
+
+
+class MediaType(str, enum.Enum):
+    audio = "audio"
+    video = "video"
+
+
+class LangueCode(str, enum.Enum):
+    fr = "fr"
+    crm = "crm"
+
+
+class CategorieGram(str, enum.Enum):
+    nom = "nom"
+    vèb = "vèb"
+    adjektif = "adjektif"
+    advèb = "advèb"
+    pwonon = "pwonon"
+    prépoziksyon = "prépoziksyon"
+    konjonksyon = "konjonksyon"
+    entèjèksyon = "entèjèksyon"
+    atik = "atik"
+    lòt = "lòt"
+
+
+class ActionType(str, enum.Enum):
+    ajout = "ajout"
+    correction = "correction"
+    validation = "validation"
+    rejet = "rejet"
+
+
+class StatutContrib(str, enum.Enum):
+    en_attente = "en_attente"
+    validé = "validé"
+    rejeté = "rejeté"
+
+
+class DomaineCorpus(str, enum.Enum):
+    koutidyen = "koutidyen"
+    kilti = "kilti"
+    nati = "nati"
+    larel = "larel"
+    istwa = "istwa"
+    mistis = "mistis"
+    kizin = "kizin"
+    mizik = "mizik"
+    lespò = "lespò"
+    lòt = "lòt"
+
+
+class UserRole(str, enum.Enum):
+    contributeur = "contributeur"
+    admin = "admin"
+
+
+# ---------------------------------------------------------------------------
+# Modèles ORM
+# ---------------------------------------------------------------------------
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+    email = Column(String(255), nullable=False, unique=True)
+    hashed_password = Column(String(255), nullable=False)
+    name = Column(String(100), nullable=False)
+    role = Column(_pg_enum(UserRole, "user_role"), nullable=False, default=UserRole.contributeur)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    contributeur = relationship("Contributeur", back_populates="user", uselist=False)
+
+
+class Source(Base):
+    __tablename__ = "sources"
+
+    id = Column(Integer, primary_key=True)
+    nom = Column(String(255), nullable=False)
+    url = Column(String(500), nullable=False, unique=True)
+    type = Column(_pg_enum(SourceType, "source_type"), nullable=False, default="texte")
+    robots_ok = Column(Boolean, nullable=False, default=False)
+    actif = Column(Boolean, nullable=False, default=True)
+    scrape_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    mots = relationship("Mot", back_populates="source")
+    traductions = relationship("Traduction", back_populates="source")
+    definitions = relationship("Definition", back_populates="source")
+    expressions = relationship("Expression", back_populates="source")
+    medias = relationship("Media", back_populates="source")
+    corpus = relationship("Corpus", back_populates="source")
+
+
+class Mot(Base):
+    __tablename__ = "mots"
+
+    id = Column(Integer, primary_key=True)
+    mot_creole = Column(String(255), nullable=False, unique=True)
+    phonetique = Column(String(255))
+    categorie_gram = Column(_pg_enum(CategorieGram, "categorie_gram"))
+    source_id = Column(Integer, ForeignKey("sources.id", ondelete="SET NULL"))
+    valide = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    source = relationship("Source", back_populates="mots")
+    traductions = relationship(
+        "Traduction", back_populates="mot", cascade="all, delete-orphan"
+    )
+    definitions = relationship(
+        "Definition", back_populates="mot", cascade="all, delete-orphan"
+    )
+
+
+class Traduction(Base):
+    __tablename__ = "traductions"
+
+    id = Column(Integer, primary_key=True)
+    mot_id = Column(
+        Integer, ForeignKey("mots.id", ondelete="CASCADE"), nullable=False
+    )
+    langue_source = Column(_pg_enum(LangueCode, "langue_code"), nullable=False)
+    langue_cible = Column(_pg_enum(LangueCode, "langue_code"), nullable=False)
+    texte_source = Column(Text, nullable=False)
+    texte_cible = Column(Text, nullable=False)
+    contexte = Column(Text)
+    registre = Column(String(50))
+    source_id = Column(Integer, ForeignKey("sources.id", ondelete="SET NULL"))
+    valide = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    mot = relationship("Mot", back_populates="traductions")
+    source = relationship("Source", back_populates="traductions")
+
+
+class Definition(Base):
+    __tablename__ = "definitions"
+
+    id = Column(Integer, primary_key=True)
+    mot_id = Column(
+        Integer, ForeignKey("mots.id", ondelete="CASCADE"), nullable=False
+    )
+    definition = Column(Text, nullable=False)
+    exemple = Column(Text)
+    source_id = Column(Integer, ForeignKey("sources.id", ondelete="SET NULL"))
+    valide = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    mot = relationship("Mot", back_populates="definitions")
+    source = relationship("Source", back_populates="definitions")
+
+
+class Expression(Base):
+    __tablename__ = "expressions"
+
+    id = Column(Integer, primary_key=True)
+    texte_creole = Column(Text, nullable=False)
+    texte_fr = Column(Text)
+    type = Column(String(50), nullable=False, default="expression")
+    explication = Column(Text)
+    source_id = Column(Integer, ForeignKey("sources.id", ondelete="SET NULL"))
+    valide = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    source = relationship("Source", back_populates="expressions")
+
+
+class Media(Base):
+    __tablename__ = "medias"
+
+    id = Column(Integer, primary_key=True)
+    url = Column(String(500), nullable=False, unique=True)
+    type = Column(_pg_enum(MediaType, "media_type"), nullable=False)
+    titre = Column(Text)
+    description = Column(Text)
+    duree_sec = Column(Integer)
+    transcription = Column(Text)
+    source_id = Column(Integer, ForeignKey("sources.id", ondelete="SET NULL"))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    source = relationship("Source", back_populates="medias")
+
+
+class Corpus(Base):
+    __tablename__ = "corpus"
+
+    id = Column(Integer, primary_key=True)
+    texte_creole = Column(Text, nullable=False)
+    texte_fr = Column(Text)
+    domaine = Column(
+        _pg_enum(DomaineCorpus, "domaine_corpus"), nullable=False, default="lòt"
+    )
+    source_id = Column(Integer, ForeignKey("sources.id", ondelete="SET NULL"))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    source = relationship("Source", back_populates="corpus")
+
+
+class Contributeur(Base):
+    __tablename__ = "contributeurs"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    pseudo = Column(String(100))
+    nb_contrib = Column(Integer, nullable=False, default=0)
+    de_confiance = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="contributeur")
+
+
+class Contribution(Base):
+    __tablename__ = "contributions"
+
+    id = Column(Integer, primary_key=True)
+    contributeur_id = Column(
+        Integer, ForeignKey("contributeurs.id"), nullable=False
+    )
+    table_cible = Column(String(50), nullable=False)
+    entite_id = Column(Integer, nullable=False)
+    type_action = Column(_pg_enum(ActionType, "action_type"), nullable=False)
+    # JSON plutôt que JSONB pour compatibilité SQLite (tests)
+    contenu_avant = Column(JSON)
+    contenu_apres = Column(JSON)
+    statut = Column(
+        _pg_enum(StatutContrib, "statut_contrib"),
+        nullable=False,
+        default="en_attente",
+    )
+    moderateur_id = Column(Integer, ForeignKey("contributeurs.id"))
+    modere_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    contributeur = relationship("Contributeur", foreign_keys=[contributeur_id])
+    moderateur = relationship("Contributeur", foreign_keys=[moderateur_id])
