@@ -189,6 +189,43 @@ class PawoloTekScraper(BaseScraper):
             "metadata":     {"hashtags": item.get("hashtags", []), "audio_url": item.get("audio_url", "")},
         }
 
+    def _extract_audio_from_page(self, page_url: str) -> str:
+        """Visite la page d'un épisode et extrait l'URL du fichier audio.
+
+        Cherche dans l'ordre :
+        1. <audio><source src="...">
+        2. <a href="...mp3">
+
+        Args:
+            page_url: URL de la page de l'épisode Pawolotek.
+
+        Returns:
+            URL du fichier audio, ou chaîne vide si introuvable.
+        """
+        import time
+        import requests
+        time.sleep(self.delay)
+        try:
+            r = requests.get(page_url, headers=self.headers, timeout=15)
+            # Pawolotek retourne parfois HTTP 500 mais livre quand même le HTML
+            # avec le lecteur audio — on lit le contenu dans tous les cas.
+            if r.status_code not in (200, 500):
+                r.raise_for_status()
+            page_soup = BeautifulSoup(r.content, "html.parser")
+
+            _audio_exts = (".mp3", ".m4a", ".ogg", ".wav", ".flac", ".aac")
+
+            source = page_soup.find("source", src=True)
+            if source:
+                return source["src"]
+
+            for a in page_soup.find_all("a", href=True):
+                if a["href"].endswith(_audio_exts):
+                    return a["href"]
+        except Exception as e:
+            logger.debug("Impossible d'extraire l'audio de %s : %s", page_url, e)
+        return ""
+
     def _parse_rss_item(self, item_tag: Any) -> dict[str, Any] | None:
         """Extrait les données d'un élément <item> RSS.
 
@@ -240,9 +277,11 @@ class PawoloTekScraper(BaseScraper):
             except Exception:
                 date_pub = pubdate_tag.get_text(strip=True)[:10]
 
-        # Fichier audio (enclosure RSS)
+        # Fichier audio : d'abord enclosure RSS, sinon scrape la page de l'épisode
         enclosure = item_tag.find("enclosure")
         audio_url = enclosure.get("url", "") if enclosure else ""
+        if not audio_url and url:
+            audio_url = self._extract_audio_from_page(url)
 
         return {
             "source": "pawolotek.com",

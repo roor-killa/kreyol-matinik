@@ -1,9 +1,11 @@
 """
 scraper_bridge.py — Pont entre FastAPI et la logique de scraping/transcription.
 
-Fournit deux fonctions principales appelées en BackgroundTask :
-  - run_url_scrape(job_id, url, source_id)  → extrait le texte d'une URL et insère en corpus
-  - run_youtube(job_id, youtube_url)         → télécharge l'audio et transcrit avec Whisper
+Fournit les fonctions principales appelées en BackgroundTask :
+  - run_url_scrape(job_id, url, source_id)       → extrait le texte d'une URL et insère en corpus
+  - run_youtube(job_id, youtube_url)              → télécharge l'audio YouTube et transcrit avec Whisper
+  - run_audio_transcription(job_id, media_id)    → transcrit un média audio existant (URL quelconque)
+  - run_audio_batch(model_size)                  → transcrit en batch tous les médias sans transcription
 
 Chaque fonction ouvre sa propre session SQLAlchemy (car la session request est
 déjà fermée quand la BackgroundTask s'exécute).
@@ -20,7 +22,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal
-from .models.models import Corpus, Expression, Mot, ScrapeJob, ScrapeJobStatus, Source
+from .models.models import Corpus, Expression, Media, Mot, ScrapeJob, ScrapeJobStatus, Source
 
 log = logging.getLogger(__name__)
 
@@ -172,15 +174,38 @@ def _download_youtube_audio(youtube_url: str, out_path: str) -> None:
         raise RuntimeError(f"yt-dlp error: {result.stderr[:500]}")
 
 
-def _transcribe_audio(audio_path: str, model_size: str = "base") -> str:
-    """Transcrit un fichier audio avec faster-whisper."""
+def _download_audio_url(url: str, out_path: str) -> None:
+    """Télécharge un fichier audio depuis une URL HTTP directe (mp3, ogg, m4a…)."""
+    import requests
+
+    r = requests.get(url, headers=_HEADERS, stream=True, timeout=120)
+    r.raise_for_status()
+    with open(out_path, "wb") as f:
+        for chunk in r.iter_content(chunk_size=65536):
+            f.write(chunk)
+
+
+def _transcribe_audio(
+    audio_path: str,
+    model_size: str = "base",
+    language: Optional[str] = "fr",
+) -> str:
+    """Transcrit un fichier audio avec faster-whisper.
+
+    Pour la transcription créole, passer language=None pour que Whisper
+    détecte automatiquement la langue (large-v3 gère mieux le mélange
+    créole/français que le forçage sur 'fr').
+    """
     try:
         from faster_whisper import WhisperModel
     except ImportError:
         raise RuntimeError("faster-whisper non installé. Ajoutez-le aux requirements.")
 
     model = WhisperModel(model_size, device="cpu", compute_type="int8")
-    segments, _ = model.transcribe(audio_path, language="fr", beam_size=3)
+    kwargs: dict = {"beam_size": 3}
+    if language:
+        kwargs["language"] = language
+    segments, _ = model.transcribe(audio_path, **kwargs)
     return " ".join(seg.text.strip() for seg in segments)
 
 
@@ -246,6 +271,108 @@ def confirm_youtube_insert(
         return entry.id
 
     raise ValueError(f"table_cible inconnue : {table_cible!r}")
+
+
+# ---------------------------------------------------------------------------
+# Transcription audio — URL directe (Pawolotek, RCI, etc.)
+# ---------------------------------------------------------------------------
+
+def run_audio_transcription(
+    job_id: int,
+    media_id: int,
+    model_size: str = "large-v3",
+) -> None:
+    """BackgroundTask : télécharge et transcrit un média audio existant en DB.
+
+    Met à jour medias.transcription et medias.transcription_src = 'auto'.
+    Insère également le texte dans corpus pour enrichir l'index Fèfèn TF-IDF.
+    """
+    db = SessionLocal()
+    try:
+        job = db.get(ScrapeJob, job_id)
+        media = db.get(Media, media_id)
+        if not job or not media:
+            return
+        _set_running(db, job)
+        media_url = media.url          # lire avant de fermer la session
+        media_source_id = media.source_id
+        db.close()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_path = str(Path(tmpdir) / f"media_{media_id}.mp3")
+            _download_audio_url(media_url, audio_path)
+            transcript = _transcribe_audio(audio_path, model_size=model_size, language=None)
+
+        db = SessionLocal()
+        media = db.get(Media, media_id)
+        job = db.get(ScrapeJob, job_id)
+        if not media or not job:
+            return
+
+        media.transcription = transcript
+        media.transcription_src = "auto"
+
+        # Alimenter le corpus Fèfèn avec la transcription
+        if transcript.strip():
+            corpus_entry = Corpus(
+                texte_creole=transcript,
+                texte_fr=None,
+                domaine="lòt",
+                source_id=media_source_id,
+            )
+            db.add(corpus_entry)
+
+        _set_done(db, job, nb=1, preview=transcript[:300])
+
+    except Exception as e:
+        log.exception("Erreur run_audio_transcription job=%d media=%d", job_id, media_id)
+        db = SessionLocal()
+        job = db.get(ScrapeJob, job_id)
+        if job:
+            _set_error(db, job, str(e))
+    finally:
+        db.close()
+
+
+def run_audio_batch(model_size: str = "large-v3") -> dict:
+    """Transcrit en batch tous les médias audio sans transcription.
+
+    Lance un thread par média (les jobs sont créés en amont par l'endpoint).
+    Retourne le nombre de jobs lancés.
+    """
+    db = SessionLocal()
+    launched = []
+    try:
+        medias = (
+            db.query(Media)
+            .filter(Media.transcription.is_(None), Media.type == "audio")
+            .all()
+        )
+        for media in medias:
+            job = ScrapeJob(
+                source_id=media.source_id,
+                url=media.url,
+                job_type="audio_transcription",
+                status=ScrapeJobStatus.pending,
+            )
+            db.add(job)
+            db.flush()
+            launched.append((job.id, media.id))
+
+        db.commit()
+    finally:
+        db.close()
+
+    import threading
+    for job_id, media_id in launched:
+        t = threading.Thread(
+            target=run_audio_transcription,
+            args=(job_id, media_id, model_size),
+            daemon=True,
+        )
+        t.start()
+
+    return {"launched": len(launched), "job_ids": [j[0] for j in launched]}
 
 
 # ---------------------------------------------------------------------------
