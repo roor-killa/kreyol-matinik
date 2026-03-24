@@ -468,6 +468,18 @@ class YoutubeConfirmRequest(BaseModel):
     domaine:     Optional[str] = "lòt"   # pour corpus seulement
 
 
+class TranscribeBatchOut(BaseModel):
+    launched:   int
+    job_ids:    List[int]
+    model_size: str
+
+
+class TranscribeReviewRequest(BaseModel):
+    transcription:      str
+    domaine:            Optional[str] = "lòt"
+    also_update_corpus: bool = True   # insérer la version corrigée en corpus Fèfèn
+
+
 class ContributionCreate(BaseModel):
     table_cible: str
     entite_id: int

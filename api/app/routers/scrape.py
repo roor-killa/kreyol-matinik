@@ -14,9 +14,16 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..dependencies import require_admin
 from ..models.models import (
-    Corpus, Definition, Expression, Mot, ScrapeJob, ScrapeJobStatus, Source,
+    Corpus, Definition, Expression, Media, Mot, ScrapeJob, ScrapeJobStatus, Source,
 )
-from ..scraper_bridge import confirm_youtube_insert, run_auto_scrape, run_url_scrape, run_youtube
+from ..scraper_bridge import (
+    confirm_youtube_insert,
+    run_audio_batch,
+    run_audio_transcription,
+    run_auto_scrape,
+    run_url_scrape,
+    run_youtube,
+)
 from ..schemas.schemas import (
     ScrapeJobOut,
     ScrapeUrlRequest,
@@ -25,6 +32,8 @@ from ..schemas.schemas import (
     SourceOut,
     SourceStats,
     SourceUpdate,
+    TranscribeBatchOut,
+    TranscribeReviewRequest,
     YoutubeConfirmRequest,
 )
 
@@ -205,3 +214,111 @@ def confirm_youtube(
 @router.post("/scrape/run-auto", summary="Lancer l'auto-scrape 🔒")
 def trigger_auto_scrape() -> dict:
     return run_auto_scrape()
+
+
+# ===========================================================================
+# Transcription audio (pseudo-labeling Whisper)
+# ===========================================================================
+
+@router.post(
+    "/transcribe/media/{media_id}",
+    response_model=ScrapeJobOut,
+    status_code=202,
+    summary="Transcrire un média audio avec Whisper 🔒",
+)
+def transcribe_media(
+    media_id: int,
+    background_tasks: BackgroundTasks,
+    model_size: str = "large-v3",
+    db: Session = Depends(get_db),
+) -> ScrapeJobOut:
+    """Lance la transcription Whisper d'un média audio existant en DB.
+
+    - `model_size` : 'tiny' | 'base' | 'small' | 'medium' | 'large-v3' (défaut)
+    - La transcription est stockée dans `medias.transcription` avec
+      `transcription_src = 'auto'` et insérée dans le corpus Fèfèn.
+    """
+    media = db.get(Media, media_id)
+    if not media:
+        raise HTTPException(status_code=404, detail="Média introuvable.")
+    if media.type != "audio":
+        raise HTTPException(status_code=422, detail="Ce média n'est pas de type audio.")
+    if media.transcription_src == "reviewed":
+        raise HTTPException(
+            status_code=409,
+            detail="Ce média a déjà une transcription validée. Utilisez l'endpoint de révision pour la modifier.",
+        )
+
+    job = ScrapeJob(
+        source_id=media.source_id,
+        url=media.url,
+        job_type="audio_transcription",
+        status=ScrapeJobStatus.pending,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    background_tasks.add_task(run_audio_transcription, job.id, media_id, model_size)
+    return ScrapeJobOut.model_validate(job, from_attributes=True)
+
+
+@router.post(
+    "/transcribe/batch",
+    response_model=TranscribeBatchOut,
+    summary="Transcrire en batch tous les médias audio sans transcription 🔒",
+)
+def transcribe_batch(
+    model_size: str = "large-v3",
+) -> TranscribeBatchOut:
+    """Lance la transcription Whisper sur tous les médias audio dont
+    `transcription` est NULL. Les jobs tournent en threads d'arrière-plan.
+
+    Recommandé : utiliser `model_size=large-v3` pour la meilleure qualité
+    sur le créole martiniquais (détection automatique de langue).
+    """
+    result = run_audio_batch(model_size=model_size)
+    return TranscribeBatchOut(
+        launched=result["launched"],
+        job_ids=result["job_ids"],
+        model_size=model_size,
+    )
+
+
+@router.patch(
+    "/transcribe/media/{media_id}/review",
+    summary="Valider / corriger la transcription d'un média 🔒",
+)
+def review_transcription(
+    media_id: int,
+    body: TranscribeReviewRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    """Permet à un locuteur natif de corriger la transcription automatique.
+
+    Met à jour `medias.transcription_src` à 'reviewed' — ce média devient
+    une paire audio/texte de vérité terrain utilisable pour le fine-tuning Whisper.
+    """
+    media = db.get(Media, media_id)
+    if not media:
+        raise HTTPException(status_code=404, detail="Média introuvable.")
+
+    media.transcription = body.transcription
+    media.transcription_src = "reviewed"
+
+    # Mettre à jour ou créer l'entrée corpus correspondante
+    if body.also_update_corpus and body.transcription.strip():
+        corpus_entry = Corpus(
+            texte_creole=body.transcription,
+            texte_fr=None,
+            domaine=body.domaine or "lòt",
+            source_id=media.source_id,
+        )
+        db.add(corpus_entry)
+
+    db.commit()
+    return {
+        "media_id": media_id,
+        "transcription_src": "reviewed",
+        "corpus_updated": body.also_update_corpus,
+    }

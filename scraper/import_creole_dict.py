@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 
 DICT_PATH = Path(__file__).parent.parent / "docs" / "def" / "creole_dict.json"
 SOURCE_NOM = "Dictionnaire Créole Martiniquais — creole_dict"
-SOURCE_URL = "https://bokaynou.mq/creole_dict"  # URL de référence interne
+SOURCE_URL = "https://kreyol.bokaynou.com/creole_dict"  # URL de référence interne
 
 logging.basicConfig(
     level=logging.INFO,

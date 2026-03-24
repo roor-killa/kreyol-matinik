@@ -215,8 +215,9 @@ function TabYoutube({ token }: { token: string }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-zinc-500">
-        Collez une URL YouTube. L'audio sera téléchargé et transcrit automatiquement par Whisper.
-        Vous pourrez ensuite corriger le texte avant de l'insérer dans la base.
+        Collez une URL YouTube. Si la vidéo possède des sous-titres manuels, ils seront récupérés tels quels.
+        Sinon, l'audio sera transcrit par Whisper — le résultat peut être imprécis pour le créole martiniquais.
+        <strong className="text-orange-600"> Relisez et corrigez le texte avant de l'insérer.</strong>
       </p>
       <div className="flex gap-3">
         <input

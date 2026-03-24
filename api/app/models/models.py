@@ -233,6 +233,8 @@ class Media(Base):
     description = Column(Text)
     duree_sec = Column(Integer)
     transcription = Column(Text)
+    # "auto" = générée par Whisper, "reviewed" = corrigée par un locuteur natif
+    transcription_src = Column(String(20), nullable=True)
     source_id = Column(Integer, ForeignKey("sources.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
