@@ -47,7 +47,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function JobRow({ job }: { job: ScrapeJob }) {
+function JobRow({ job, onDelete }: { job: ScrapeJob; onDelete: (id: number) => void }) {
   return (
     <tr className="border-b border-zinc-100 dark:border-zinc-800">
       <td className="px-3 py-2 font-mono text-xs text-zinc-400">{job.id}</td>
@@ -56,6 +56,13 @@ function JobRow({ job }: { job: ScrapeJob }) {
       <td className="px-3 py-2"><StatusBadge status={job.status} /></td>
       <td className="px-3 py-2 text-xs text-zinc-500">{job.nb_inserted}</td>
       <td className="px-3 py-2 text-xs text-red-500 max-w-[200px] truncate">{job.error_msg ?? ""}</td>
+      <td className="px-3 py-2">
+        <button
+          onClick={() => onDelete(job.id)}
+          className="text-xs text-zinc-400 hover:text-red-500"
+          title="Supprimer ce job"
+        >✕</button>
+      </td>
     </tr>
   );
 }
@@ -514,19 +521,52 @@ function TabSources({ token }: { token: string }) {
 function RecentJobs({ token }: { token: string }) {
   const [jobs, setJobs] = useState<ScrapeJob[]>([]);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     adminApi.getJobs(token).then(setJobs).catch(() => {});
-    const id = setInterval(() => {
-      adminApi.getJobs(token).then(setJobs).catch(() => {});
-    }, 5000);
-    return () => clearInterval(id);
   }, [token]);
+
+  useEffect(() => {
+    reload();
+    const id = setInterval(reload, 5000);
+    return () => clearInterval(id);
+  }, [reload]);
+
+  async function deleteJob(id: number) {
+    await adminApi.deleteJob(token, id);
+    setJobs((prev) => prev.filter((j) => j.id !== id));
+  }
+
+  async function deleteAllRunning() {
+    if (!confirm("Supprimer tous les jobs \"running\" bloqués ?")) return;
+    const result = await adminApi.bulkDeleteJobs(token, "running");
+    alert(`${result.deleted} job(s) supprimé(s).`);
+    reload();
+  }
 
   if (!jobs.length) return null;
 
+  const runningCount = jobs.filter((j) => j.status === "running").length;
+
   return (
     <div className="mt-8">
-      <h2 className="mb-2 text-sm font-semibold text-zinc-700 dark:text-zinc-300">Historique des jobs récents</h2>
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+          Historique des jobs récents
+          {runningCount > 0 && (
+            <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{runningCount} running</span>
+          )}
+        </h2>
+        <div className="flex gap-2">
+          {runningCount > 0 && (
+            <Button size="sm" variant="destructive" onClick={deleteAllRunning}>
+              Supprimer les {runningCount} jobs bloqués
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={() => { if (confirm("Supprimer tout l'historique ?")) adminApi.bulkDeleteJobs(token).then((r) => { alert(`${r.deleted} job(s) supprimé(s).`); reload(); }); }}>
+            Tout effacer
+          </Button>
+        </div>
+      </div>
       <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
         <table className="w-full text-sm">
           <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500 dark:bg-zinc-800">
@@ -537,9 +577,10 @@ function RecentJobs({ token }: { token: string }) {
               <th className="px-3 py-2">Statut</th>
               <th className="px-3 py-2">Insérés</th>
               <th className="px-3 py-2">Erreur</th>
+              <th className="px-3 py-2"></th>
             </tr>
           </thead>
-          <tbody>{jobs.slice(0, 10).map((j) => <JobRow key={j.id} job={j} />)}</tbody>
+          <tbody>{jobs.slice(0, 50).map((j) => <JobRow key={j.id} job={j} onDelete={deleteJob} />)}</tbody>
         </table>
       </div>
     </div>

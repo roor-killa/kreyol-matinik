@@ -459,4 +459,10 @@ export const adminApi = {
 
   getJob: (token: string, id: number): Promise<ScrapeJob> =>
     apiFetch(`${FASTAPI}/admin/scrape/jobs/${id}`, { headers: authHeaders(token) }),
+
+  deleteJob: (token: string, id: number): Promise<void> =>
+    apiFetch(`${FASTAPI}/admin/scrape/jobs/${id}`, { method: "DELETE", headers: authHeaders(token) }),
+
+  bulkDeleteJobs: (token: string, status?: string): Promise<{ deleted: number }> =>
+    apiFetch(`${FASTAPI}/admin/scrape/jobs${status ? `?status=${status}` : ""}`, { method: "DELETE", headers: authHeaders(token) }),
 };

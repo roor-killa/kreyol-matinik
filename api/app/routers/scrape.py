@@ -134,6 +134,26 @@ def get_job(job_id: int, db: Session = Depends(get_db)) -> ScrapeJobOut:
     return ScrapeJobOut.model_validate(job, from_attributes=True)
 
 
+@router.delete("/scrape/jobs/{job_id}", status_code=204, summary="Supprimer un job 🔒")
+def delete_job(job_id: int, db: Session = Depends(get_db)) -> None:
+    job = db.get(ScrapeJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job introuvable.")
+    db.delete(job)
+    db.commit()
+
+
+@router.delete("/scrape/jobs", status_code=200, summary="Supprimer des jobs en masse 🔒")
+def bulk_delete_jobs(status: str | None = None, db: Session = Depends(get_db)) -> dict:
+    """Supprime tous les jobs, ou seulement ceux d'un statut donné (ex: running, error)."""
+    q = db.query(ScrapeJob)
+    if status:
+        q = q.filter(ScrapeJob.status == status)
+    count = q.delete(synchronize_session=False)
+    db.commit()
+    return {"deleted": count}
+
+
 # ===========================================================================
 # Scraping URL
 # ===========================================================================
