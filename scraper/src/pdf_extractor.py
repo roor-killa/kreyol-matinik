@@ -4,17 +4,30 @@ pdf_extractor.py — Extraction et parsing du Dictionnaire Confiant
 Lit les PDFs téléchargés par PotomitanPDFScraper et extrait les
 entrées du dictionnaire créole martiniquais.
 
-Structure d'une entrée :
+Structure d'une entrée (format A — dot+définition sur même ligne) :
     mot [numéro]            ← en-tête (ligne seule)
     . définition française  ← définition (commence par .)
     Exemple créole          ← phrase d'exemple (optionnel)
     Traduction française    ← traduction de l'exemple (optionnel)
-    var. variante1, var2    ← variantes orthographiques (optionnel)
-    syn. synonyme1, syn2    ← synonymes (optionnel)
-    fém. forme féminine     ← féminin (optionnel)
+
+Structure d'une entrée (format B — dot seul sur sa ligne) :
+    mot [numéro]            ← en-tête (ligne seule)
+    .                       ← marqueur de définition (ligne seule)
+    définition française    ← définition (ligne suivante)
+    Exemple créole          ← phrase d'exemple (optionnel)
+    Traduction française    ← traduction de l'exemple (optionnel)
+
+Marqueurs communs :
+    var. variante1, var2    ← variantes orthographiques
+    syn. synonyme1, syn2    ← synonymes
+    fém. forme féminine     ← féminin
+    exp. expression         ← expression / locution
+    pvb. proverbe           ← proverbe
+    gwd. mot guadeloupéen   ← variante guadeloupéenne
 
 Données extraites pour chaque entrée :
-    mot_creole, numero, definition_fr, exemples, variantes, synonymes, lettre
+    mot_creole, numero, definition_fr, exemples, variantes, synonymes,
+    expressions, proverbes, lettre
 """
 
 from __future__ import annotations
@@ -36,21 +49,33 @@ log = logging.getLogger(__name__)
 # En-tête d'entrée : mot créole seul sur une ligne (avec accents, tirets, apostrophes)
 # Optionnellement suivi d'un numéro (homonymes : a 1, a 2, ababa 1…)
 _RE_HEADER = re.compile(
-    r"^([A-ZÀ-Öa-zà-öØ-öø-ÿ''-]+(?:[- ][A-ZÀ-Öa-zà-öØ-öø-ÿ''-]+)*)"
+    r"^([A-ZÀ-Öa-zà-öØ-öø-ÿ''\-]+(?:[- ][A-ZÀ-Öa-zà-öØ-öø-ÿ''\-]+)*)"
     r"(?:\s+(\d+))?\s*$"
 )
-# Définition : ligne commençant par "."
-_RE_DEF    = re.compile(r"^\.\s*(.*)")
+# Définition : ligne commençant par "." suivi de texte
+_RE_DEF = re.compile(r"^\.\s+(.+)")
+# Définition : ligne qui est juste un "." (dot seul — le texte suit sur la ligne suivante)
+_RE_DOT_ONLY = re.compile(r"^\.\s*$")
 # Variante : "var. ..."
-_RE_VAR    = re.compile(r"^var\.\s*(.*)")
+_RE_VAR = re.compile(r"^var\.\s*(.*)")
 # Synonyme : "syn. ..."
-_RE_SYN    = re.compile(r"^syn\.\s*(.*)")
+_RE_SYN = re.compile(r"^syn\.\s*(.*)")
 # Féminin : "fém. ..."
-_RE_FEM    = re.compile(r"^fém\.\s*(.*)")
+_RE_FEM = re.compile(r"^fém\.\s*(.*)")
+# Expression : "exp. ..."
+_RE_EXP = re.compile(r"^exp\.\s*(.*)")
+# Proverbe : "pvb. ..."
+_RE_PVB = re.compile(r"^pvb\.\s*(.*)")
+# Guadeloupéen : "gwd. ..."
+_RE_GWD = re.compile(r"^gwd\.\s*(.*)")
 # Pied de page à supprimer
 _RE_FOOTER = re.compile(
     r"Dictionnaire du créole martiniquais.+\d{4}\s+\d+$",
     re.IGNORECASE,
+)
+# Titre de page (ex: "Raphaël CONFIANT", "DICTIONNAIRE DU CREOLE MARTINIQUAIS", lettre seule)
+_RE_PAGE_TITLE = re.compile(
+    r"^(Raphaël CONFIANT|DICTIONNAIRE DU CREOLE MARTINIQUAIS|[A-Z]{1,3})$"
 )
 
 
@@ -99,6 +124,9 @@ class PDFExtractor:
                     # Supprimer les pieds de page
                     if _RE_FOOTER.search(line):
                         continue
+                    # Supprimer les titres de page répétés
+                    if _RE_PAGE_TITLE.match(line):
+                        continue
                     if line:
                         lines.append(line)
         return lines
@@ -110,31 +138,39 @@ class PDFExtractor:
     def _parse(self, lines: list[str], lettre: str) -> list[dict[str, Any]]:
         entries: list[dict[str, Any]] = []
         current: dict[str, Any] | None = None
+        # Flag: the previous line was a dot-only, so the next line is the definition
+        expect_def = False
 
         for line in lines:
+            # --- If previous line was a dot-only, this line IS the definition ---
+            if expect_def and current is not None:
+                expect_def = False
+                # This line could still match a marker (edge case), but usually it's plain text
+                dfn = line.strip()
+                if dfn:
+                    if current["definition_fr"]:
+                        current["definition_fr"] += " " + dfn
+                    else:
+                        current["definition_fr"] = dfn
+                continue
+
             # --- En-tête d'entrée ---
             m = _RE_HEADER.match(line)
             if m and self._is_header(line, m):
                 if current and current.get("definition_fr"):
                     entries.append(current)
-                current = {
-                    "mot_creole":    m.group(1),
-                    "numero":        int(m.group(2)) if m.group(2) else None,
-                    "definition_fr": "",
-                    "exemples":      [],
-                    "variantes":     [],
-                    "synonymes":     [],
-                    "feminin":       None,
-                    "lettre":        lettre,
-                    "source":        "Dictionnaire du Créole Martiniquais, Raphaël Confiant",
-                    "source_url":    f"https://www.potomitan.info/dictionnaire/{lettre.lower()}.pdf",
-                }
+                current = self._new_entry(m, lettre)
                 continue
 
             if current is None:
                 continue
 
-            # --- Définition ---
+            # --- Dot seul (format B : définition sur la ligne suivante) ---
+            if _RE_DOT_ONLY.match(line):
+                expect_def = True
+                continue
+
+            # --- Définition (format A : ". texte" sur même ligne) ---
             m_def = _RE_DEF.match(line)
             if m_def:
                 dfn = m_def.group(1).strip()
@@ -144,22 +180,44 @@ class PDFExtractor:
                     current["definition_fr"] = dfn
                 continue
 
+            # --- Expression ---
+            m_exp = _RE_EXP.match(line)
+            if m_exp:
+                current["expressions"].append(m_exp.group(1).strip())
+                continue
+
+            # --- Proverbe ---
+            m_pvb = _RE_PVB.match(line)
+            if m_pvb:
+                current["proverbes"].append(m_pvb.group(1).strip())
+                continue
+
             # --- Variantes ---
             m_var = _RE_VAR.match(line)
             if m_var:
-                current["variantes"] = [v.strip() for v in m_var.group(1).split(",") if v.strip()]
+                current["variantes"] = [
+                    v.strip() for v in m_var.group(1).split(",") if v.strip()
+                ]
                 continue
 
             # --- Synonymes ---
             m_syn = _RE_SYN.match(line)
             if m_syn:
-                current["synonymes"] = [s.strip() for s in m_syn.group(1).split(",") if s.strip()]
+                current["synonymes"] = [
+                    s.strip() for s in m_syn.group(1).split(",") if s.strip()
+                ]
                 continue
 
             # --- Féminin ---
             m_fem = _RE_FEM.match(line)
             if m_fem:
                 current["feminin"] = m_fem.group(1).strip()
+                continue
+
+            # --- Guadeloupéen ---
+            m_gwd = _RE_GWD.match(line)
+            if m_gwd:
+                current["variantes"].append("gwd. " + m_gwd.group(1).strip())
                 continue
 
             # --- Exemple (toute autre ligne non-vide) ---
@@ -173,8 +231,24 @@ class PDFExtractor:
         return entries
 
     # ------------------------------------------------------------------
-    # Heuristique : distinguer en-tête d'entrée d'une ligne de texte
+    # Helpers
     # ------------------------------------------------------------------
+
+    def _new_entry(self, match: re.Match, lettre: str) -> dict[str, Any]:
+        return {
+            "mot_creole":    match.group(1),
+            "numero":        int(match.group(2)) if match.group(2) else None,
+            "definition_fr": "",
+            "exemples":      [],
+            "variantes":     [],
+            "synonymes":     [],
+            "expressions":   [],
+            "proverbes":     [],
+            "feminin":       None,
+            "lettre":        lettre,
+            "source":        "Dictionnaire du Créole Martiniquais, Raphaël Confiant",
+            "source_url":    f"https://www.potomitan.info/dictionnaire/{lettre.lower()}.pdf",
+        }
 
     def _is_header(self, line: str, match: re.Match) -> bool:
         """
