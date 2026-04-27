@@ -2,8 +2,9 @@
 Schémas Pydantic v2 — Lang Matinitjé API
 """
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 from urllib.parse import urlparse
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
@@ -512,3 +513,52 @@ class ContributionOut(BaseModel):
             moderateur_id=c.moderateur_id,
             modere_at=c.modere_at,
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 — Pipeline linguistique
+# ---------------------------------------------------------------------------
+
+class ConversationLogOut(BaseModel):
+    id: UUID
+    session_id: UUID
+    user_message: str
+    bot_response: str
+    detected_lang: str
+    lang_confidence: float
+    user_correction: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ModerationCandidateOut(BaseModel):
+    id: int
+    candidate_type: str
+    status: str
+    word: Optional[str] = None
+    definition_kr: Optional[str] = None
+    definition_fr: Optional[str] = None
+    phonetic: Optional[str] = None
+    pos: Optional[str] = None
+    examples: List[Any] = []
+    context: Optional[str] = None
+    variants: List[Any] = []
+    source_log_ids: List[UUID] = []
+    speaker_count: int
+    frequency: int
+    reviewer_note: Optional[str] = None
+    linked_mot_id: Optional[int] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ModerationReview(BaseModel):
+    status: str                              # "approved", "rejected", "merged"
+    reviewer_note: Optional[str] = None
+    word_override: Optional[str] = None      # le lingwis peut corriger le mot
+    definition_kr: Optional[str] = None
+    definition_fr: Optional[str] = None
+    pos_override: Optional[str] = None
+    merge_with_mot_id: Optional[int] = None  # si status="merged"

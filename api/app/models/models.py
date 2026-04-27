@@ -9,6 +9,7 @@ Notes sur les ENUMs :
   → la valeur EST la chaîne → sérialisation Pydantic sans config supplémentaire
 """
 import enum
+import uuid
 from datetime import datetime
 
 from sqlalchemy import (
@@ -16,15 +17,51 @@ from sqlalchemy import (
     Column,
     DateTime,
     Enum as SAEnum,
+    Float,
     ForeignKey,
     Integer,
     String,
     Text,
 )
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import relationship
-from sqlalchemy.types import JSON
+from sqlalchemy.types import JSON, TypeDecorator
 
 from ..database import Base
+
+
+# ---------------------------------------------------------------------------
+# Type personnalisé : UUID[] sur PostgreSQL, JSON sur SQLite (tests)
+# ---------------------------------------------------------------------------
+
+class UUIDArrayType(TypeDecorator):
+    """ARRAY(UUID) sur PostgreSQL, JSON array de strings sur SQLite.
+
+    Permet d'utiliser le même modèle ORM en production (PostgreSQL)
+    et dans les tests unitaires (SQLite en mémoire).
+    """
+    impl = JSON
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(ARRAY(UUID(as_uuid=True)))
+        return dialect.type_descriptor(JSON())
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        if dialect.name == "postgresql":
+            return value  # uuid.UUID objects → psycopg2 sait les gérer
+        return [str(v) for v in value]  # stocké comme ["uuid-str", ...]
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        if dialect.name == "postgresql":
+            return value  # déjà des uuid.UUID
+        import uuid as _uuid_mod
+        return [_uuid_mod.UUID(str(v)) for v in (value or [])]
 
 
 # ---------------------------------------------------------------------------
@@ -103,6 +140,22 @@ class DomaineCorpus(str, enum.Enum):
 class UserRole(str, enum.Enum):
     contributeur = "contributeur"
     admin = "admin"
+    lingwis = "lingwis"
+
+
+class CandidateType(str, enum.Enum):
+    new_word = "new_word"
+    spelling_variant = "spelling_variant"
+    grammar_pattern = "grammar_pattern"
+    expression = "expression"
+    correction = "correction"
+
+
+class CandidateStatus(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+    merged = "merged"
 
 
 # ---------------------------------------------------------------------------
@@ -318,3 +371,76 @@ class Contribution(Base):
 
     contributeur = relationship("Contributeur", foreign_keys=[contributeur_id])
     moderateur = relationship("Contributeur", foreign_keys=[moderateur_id])
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 — Pipeline linguistique
+# Note : UUID et ARRAY sont des types natifs PostgreSQL.
+#        Sur SQLite (tests unitaires sans DB), ces colonnes ne sont pas
+#        supportées nativement — prévoir des tests avec une vraie PG ou des mocks.
+# ---------------------------------------------------------------------------
+
+class ConversationLog(Base):
+    __tablename__ = "conversation_logs"
+
+    id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id      = Column(UUID(as_uuid=True), nullable=False)
+    user_id         = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user_message    = Column(Text, nullable=False)
+    bot_response    = Column(Text, nullable=False)
+    detected_lang   = Column(String(10), default="crm")
+    lang_confidence = Column(Float, default=0.0)
+    user_correction = Column(Text, nullable=True)
+    is_processed    = Column(Boolean, default=False)
+    created_at      = Column(DateTime(timezone=True), default=datetime.utcnow)
+    processed_at    = Column(DateTime(timezone=True), nullable=True)
+
+    user = relationship("User", foreign_keys=[user_id])
+
+
+class ModerationCandidate(Base):
+    __tablename__ = "moderation_candidates"
+
+    id              = Column(Integer, primary_key=True)
+    candidate_type  = Column(
+        _pg_enum(CandidateType, "candidate_type"), nullable=False
+    )
+    status          = Column(
+        _pg_enum(CandidateStatus, "candidate_status"), default=CandidateStatus.pending
+    )
+    word            = Column(String(255))
+    definition_kr   = Column(Text)
+    definition_fr   = Column(Text)
+    phonetic        = Column(String(255))
+    pos             = Column(String(50))
+    examples        = Column(JSON, default=list)   # JSON pour compat SQLite (tests)
+    context         = Column(Text)
+    variants        = Column(JSON, default=list)
+    source_log_ids  = Column(UUIDArrayType, nullable=False, default=list)
+    speaker_count   = Column(Integer, default=1)
+    frequency       = Column(Integer, default=1)
+    reviewed_by     = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_at     = Column(DateTime(timezone=True), nullable=True)
+    reviewer_note   = Column(Text, nullable=True)
+    linked_mot_id   = Column(Integer, ForeignKey("mots.id"), nullable=True)
+    created_at      = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at      = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    reviewer    = relationship("User", foreign_keys=[reviewed_by])
+    linked_mot  = relationship("Mot", foreign_keys=[linked_mot_id])
+
+
+class LinguisticEntry(Base):
+    __tablename__ = "linguistic_entries"
+
+    id           = Column(Integer, primary_key=True)
+    mot_id       = Column(Integer, ForeignKey("mots.id", ondelete="CASCADE"))
+    candidate_id = Column(Integer, ForeignKey("moderation_candidates.id"))
+    source       = Column(String(50), default="conversation")
+    validated_by = Column(Integer, ForeignKey("users.id"))
+    validated_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    extra_data   = Column("metadata", JSON, default=dict)  # "metadata" est réservé par SQLAlchemy
+
+    mot       = relationship("Mot", foreign_keys=[mot_id])
+    candidate = relationship("ModerationCandidate", foreign_keys=[candidate_id])
+    validator = relationship("User", foreign_keys=[validated_by])

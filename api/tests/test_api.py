@@ -186,10 +186,12 @@ def test_chat_reply(client: TestClient):
     assert data["session_id"]
     assert data["model_version"] == "fèfèn-0.2-tfidf"
 
-    # Le session_id fourni doit être retourné tel quel
-    resp2 = client.post("/api/v1/chat", json={"message": msg, "session_id": "sess_test"})
+    # Un session_id UUID valide fourni doit être retourné tel quel
+    import uuid as _uuid
+    sid = str(_uuid.uuid4())
+    resp2 = client.post("/api/v1/chat", json={"message": msg, "session_id": sid})
     assert resp2.status_code == 200
-    assert resp2.json()["session_id"] == "sess_test"
+    assert resp2.json()["session_id"] == sid
 
 
 def test_chat_reply_index():

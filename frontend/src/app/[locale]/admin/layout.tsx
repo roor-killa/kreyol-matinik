@@ -5,19 +5,23 @@ import { useEffect, useState } from "react";
 import { useParams, usePathname } from "next/navigation";
 import { useAuthStore } from "@/lib/auth";
 
-const NAV_ITEMS = [
-  { key: "tableau",       label: "Tableau de bord",   path: ""              },
-  { key: "mots",          label: "Mots & Définitions", path: "/mots"         },
-  { key: "corpus",        label: "Corpus",             path: "/corpus"       },
-  { key: "expressions",   label: "Expressions",        path: "/expressions"  },
-  { key: "contributions", label: "Contributions",      path: "/contributions"},
+const ADMIN_NAV = [
+  { key: "tableau",       label: "Tableau de bord",    path: ""              },
+  { key: "mots",          label: "Mots & Définitions",  path: "/mots"         },
+  { key: "corpus",        label: "Corpus",              path: "/corpus"       },
+  { key: "expressions",   label: "Expressions",         path: "/expressions"  },
+  { key: "contributions", label: "Contributions",       path: "/contributions"},
+];
+
+const LINGWIS_NAV = [
+  { key: "moderation",    label: "File de modération", path: "/moderation"   },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const params   = useParams();
   const pathname = usePathname();
   const locale   = params.locale as string;
-  const { isAdmin, isAuthenticated } = useAuthStore();
+  const { isAdmin, isAuthenticated, isLingwis } = useAuthStore();
 
   // Attendre la réhydratation Zustand depuis localStorage avant de vérifier l'auth
   const [mounted, setMounted] = useState(false);
@@ -27,10 +31,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return <div className="py-20 text-center text-zinc-400">Chargement…</div>;
   }
 
-  if (!isAuthenticated() || !isAdmin()) {
+  if (!isAuthenticated() || !isLingwis()) {
     return (
       <div className="py-20 text-center text-zinc-500">
-        Accès réservé aux administrateurs.
+        Accès réservé aux administrateurs et linguistes.
       </div>
     );
   }
@@ -45,7 +49,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           Administration
         </p>
         <nav className="space-y-0.5">
-          {NAV_ITEMS.map(({ key, label, path }) => {
+          {(isAdmin() ? ADMIN_NAV : []).map(({ key, label, path }) => {
             const href    = `${base}${path}`;
             const active  = pathname === href || (path !== "" && pathname.startsWith(href));
             return (
@@ -62,6 +66,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </Link>
             );
           })}
+          {isLingwis() && (
+            <>
+              {isAdmin() && (
+                <p className="mb-1 mt-3 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                  Linguistique
+                </p>
+              )}
+              {LINGWIS_NAV.map(({ key, label, path }) => {
+                const href   = `${base}${path}`;
+                const active = pathname === href || pathname.startsWith(href);
+                return (
+                  <Link
+                    key={key}
+                    href={href}
+                    className={`block rounded-lg px-3 py-2 text-sm transition-colors ${
+                      active
+                        ? "bg-orange-50 font-medium text-orange-700 dark:bg-orange-950 dark:text-orange-300"
+                        : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    {label}
+                  </Link>
+                );
+              })}
+            </>
+          )}
         </nav>
       </aside>
 

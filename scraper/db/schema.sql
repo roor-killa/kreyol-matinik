@@ -19,7 +19,7 @@ CREATE TYPE categorie_gram  AS ENUM (
     'prépoziksyon', 'konjonksyon', 'entèjèksyon', 'atik', 'lòt'
 );
 CREATE TYPE action_type     AS ENUM ('ajout', 'correction', 'validation', 'rejet');
-CREATE TYPE user_role       AS ENUM ('contributeur', 'admin');
+CREATE TYPE user_role       AS ENUM ('contributeur', 'admin', 'lingwis');
 CREATE TYPE statut_contrib  AS ENUM ('en_attente', 'validé', 'rejeté');
 CREATE TYPE domaine_corpus  AS ENUM (
     'koutidyen', 'kilti', 'nati', 'larel', 'istwa',
@@ -281,6 +281,94 @@ CREATE TRIGGER trg_sources_updated_at
 
 INSERT INTO sources (nom, url, type, robots_ok) VALUES
     ('Pawolotek', 'https://pawolotek.com/', 'mixte', FALSE);
+
+-- =============================================================================
+-- PHASE 8 — Pipeline d'extraction linguistique
+-- =============================================================================
+
+CREATE TYPE candidate_type AS ENUM (
+    'new_word',           -- mot absent du dictionnaire
+    'spelling_variant',   -- variante orthographique d'un mot existant
+    'grammar_pattern',    -- pattern grammatical détecté
+    'expression',         -- locution / expression figée
+    'correction'          -- correction utilisateur d'une réponse Fèfèn
+);
+
+CREATE TYPE candidate_status AS ENUM (
+    'pending',
+    'approved',
+    'rejected',
+    'merged'              -- fusionné avec une entrée existante
+);
+
+-- conversation_logs : journal brut des échanges avec Fèfèn
+CREATE TABLE conversation_logs (
+    id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id      UUID        NOT NULL,
+    user_id         INTEGER     REFERENCES users(id) ON DELETE SET NULL,
+    user_message    TEXT        NOT NULL,
+    bot_response    TEXT        NOT NULL,
+    detected_lang   VARCHAR(10) DEFAULT 'crm',
+    lang_confidence FLOAT       DEFAULT 0.0,
+    user_correction TEXT,                    -- si l'utilisateur corrige Fèfèn
+    is_processed    BOOLEAN     DEFAULT FALSE,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    processed_at    TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX idx_conv_logs_unprocessed ON conversation_logs (is_processed) WHERE NOT is_processed;
+CREATE INDEX idx_conv_logs_session     ON conversation_logs (session_id);
+
+-- moderation_candidates : candidats extraits par le pipeline, en attente de validation humaine
+CREATE TABLE moderation_candidates (
+    id              SERIAL              PRIMARY KEY,
+    candidate_type  candidate_type      NOT NULL,
+    status          candidate_status    DEFAULT 'pending',
+
+    -- Contenu extrait
+    word            VARCHAR(255),
+    definition_kr   TEXT,
+    definition_fr   TEXT,
+    phonetic        VARCHAR(255),
+    pos             VARCHAR(50),             -- catégorie grammaticale
+    examples        JSONB               DEFAULT '[]',   -- [{"kr": "...", "fr": "..."}]
+    context         TEXT,                    -- phrase source d'où le candidat est extrait
+    variants        JSONB               DEFAULT '[]',   -- variantes orthographiques détectées
+
+    -- Traçabilité
+    source_log_ids  UUID[]              NOT NULL,        -- conversation_logs.id ayant généré ce candidat
+    speaker_count   INTEGER             DEFAULT 1,       -- nombre de locuteurs distincts
+    frequency       INTEGER             DEFAULT 1,       -- nombre d'occurrences total
+
+    -- Modération
+    reviewed_by     INTEGER             REFERENCES users(id),
+    reviewed_at     TIMESTAMP WITH TIME ZONE,
+    reviewer_note   TEXT,
+
+    -- Si approved → lien vers l'entrée créée
+    linked_mot_id   INTEGER             REFERENCES mots(id),
+
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_mod_candidates_status ON moderation_candidates (status);
+CREATE INDEX idx_mod_candidates_type   ON moderation_candidates (candidate_type);
+
+CREATE TRIGGER trg_mod_candidates_updated_at
+    BEFORE UPDATE ON moderation_candidates
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- linguistic_entries : entrées validées issues des conversations
+CREATE TABLE linguistic_entries (
+    id              SERIAL      PRIMARY KEY,
+    mot_id          INTEGER     REFERENCES mots(id) ON DELETE CASCADE,
+    candidate_id    INTEGER     REFERENCES moderation_candidates(id),
+    source          VARCHAR(50) DEFAULT 'conversation',
+    validated_by    INTEGER     REFERENCES users(id),
+    validated_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    metadata        JSONB       DEFAULT '{}'       -- infos supplémentaires (fréquence, contextes)
+);
 
 -- =============================================================================
 -- FIN DU SCHÉMA

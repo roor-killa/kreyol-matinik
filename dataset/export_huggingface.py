@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import re
 import sys
 from datetime import date
@@ -168,6 +169,87 @@ def build_corpus(pawolotek: list[dict], potomitan: list[dict]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Config 5 — conversations_validated (Phase 8)
+# ---------------------------------------------------------------------------
+
+_VALIDATED_QUERY = """
+    SELECT
+        le.id              AS entry_id,
+        le.source,
+        le.validated_at,
+        m.mot_creole,
+        m.phonetique,
+        m.categorie_gram,
+        mc.candidate_type,
+        mc.examples,
+        mc.context,
+        mc.definition_kr,
+        mc.definition_fr,
+        mc.speaker_count,
+        mc.frequency,
+        mc.variants
+    FROM linguistic_entries le
+    JOIN mots m ON le.mot_id = m.id
+    LEFT JOIN moderation_candidates mc ON le.candidate_id = mc.id
+    WHERE le.source = 'conversation'
+    ORDER BY le.validated_at DESC
+"""
+
+
+def _db_connect():
+    """Connexion psycopg2 depuis les variables d'environnement."""
+    try:
+        import psycopg2  # type: ignore
+    except ImportError:
+        raise RuntimeError("psycopg2 non installé — pip install psycopg2-binary")
+
+    return psycopg2.connect(
+        host=os.getenv("POSTGRES_HOST",     "127.0.0.1"),
+        port=int(os.getenv("POSTGRES_PORT", "5432")),
+        dbname=os.getenv("POSTGRES_DB",       "langmatinitje"),
+        user=os.getenv("POSTGRES_USER",       "creole"),
+        password=os.getenv("POSTGRES_PASSWORD", ""),
+    )
+
+
+def build_conversations_validated() -> list[dict]:
+    """Config « conversations_validated » — entrées validées issues des conversations Fèfèn."""
+    conn = _db_connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(_VALIDATED_QUERY)
+            cols = [desc[0] for desc in cur.description]
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    records: list[dict] = []
+    for row in rows:
+        r = dict(zip(cols, row))
+        records.append({
+            "id":             f"conv_{r['entry_id']}",
+            "mot":            _clean(r.get("mot_creole")),
+            "phonetique":     _clean(r.get("phonetique")),
+            "categorie_gram": _clean(r.get("categorie_gram")),
+            "candidate_type": _clean(r.get("candidate_type")),
+            "definition_kr":  _clean(r.get("definition_kr")),
+            "definition_fr":  _clean(r.get("definition_fr")),
+            "context":        _clean(r.get("context")),
+            "examples":       r.get("examples") or [],
+            "variants":       r.get("variants") or [],
+            "speaker_count":  r.get("speaker_count") or 1,
+            "frequency":      r.get("frequency") or 1,
+            "validated_at":   r["validated_at"].isoformat() if r.get("validated_at") else None,
+            "source":         "conversation",
+            "licence":        LICENCE,
+            "language":       LANGUAGE,
+        })
+
+    log.info("conversations_validated : %d entrées depuis la base", len(records))
+    return records
+
+
+# ---------------------------------------------------------------------------
 # Dataset Card
 # ---------------------------------------------------------------------------
 
@@ -210,6 +292,10 @@ dataset_info:
       splits:
         - name: train
           num_examples: {stats.get('dictionnaire_confiant', 0)}
+    - config_name: conversations_validated
+      splits:
+        - name: train
+          num_examples: {stats.get('conversations_validated', 0)}
 ---
 
 # Lang Matinitjé — Dataset créole martiniquais
@@ -234,6 +320,7 @@ User-Agent identifié) depuis des sources créolophones publiques.
 | `lexique` | {stats['lexique']} | Mots du dictionnaire + définitions (Pawolotek) |
 | `contes_poemes` | {stats['contes_poemes']} | Contes et poèmes (Potomitan) |
 | `dictionnaire_confiant` | {stats.get('dictionnaire_confiant', 0)} | Dictionnaire créole martiniquais — Raphaël Confiant (PDFs) |
+| `conversations_validated` | {stats.get('conversations_validated', 0)} | Entrées linguistiques validées issues des conversations Fèfèn |
 
 ## Sources
 
@@ -295,6 +382,24 @@ contes = load_dataset("kreyol-matinik/lang-matinitje", "contes_poemes")
 | `url` | str | URL de la page source |
 | `date` | str | Date de publication |
 
+### `conversations_validated`
+| Champ | Type | Description |
+|---|---|---|
+| `id` | str | Identifiant unique (`conv_<id>`) |
+| `mot` | str | Mot créole validé |
+| `phonetique` | str | Transcription phonétique |
+| `categorie_gram` | str | Catégorie grammaticale |
+| `candidate_type` | str | Type d'extraction (`new_word`, `correction`, etc.) |
+| `definition_kr` | str | Définition en créole |
+| `definition_fr` | str | Traduction française |
+| `context` | str | Phrase source d'où le mot a été extrait |
+| `examples` | list | Exemples d'utilisation `[{"kr": ..., "fr": ...}]` |
+| `variants` | list | Variantes orthographiques détectées |
+| `speaker_count` | int | Nombre de locuteurs distincts |
+| `frequency` | int | Nombre d'occurrences dans les conversations |
+| `validated_at` | str | Date de validation par le lingwis |
+| `source` | str | `conversation` |
+
 ## Citation
 
 ```bibtex
@@ -340,6 +445,10 @@ def main() -> None:
         "--no-parquet", action="store_true",
         help="Désactiver l'export Parquet (utile sans la lib 'datasets')"
     )
+    parser.add_argument(
+        "--no-db", action="store_true",
+        help="Ignorer la config conversations_validated (pas de connexion DB)"
+    )
     args = parser.parse_args()
 
     # Vérification des sources
@@ -362,6 +471,14 @@ def main() -> None:
         "lexique":       build_lexique(pawolotek),
         "contes_poemes": build_contes_poemes(potomitan),
     }
+
+    # Config conversations_validated : depuis PostgreSQL (Phase 8)
+    if not args.no_db:
+        try:
+            configs["conversations_validated"] = build_conversations_validated()
+        except Exception as e:
+            log.warning("conversations_validated ignorée : %s", e)
+            log.warning("Lance avec --no-db pour ignorer, ou vérifie POSTGRES_* env vars")
 
     # Config dictionnaire_confiant : si le JSONL existe, on le recopie tel quel
     confiant_jsonl = OUT_DIR / "dictionnaire_confiant" / "train.jsonl"

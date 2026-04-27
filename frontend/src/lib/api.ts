@@ -98,7 +98,7 @@ export interface AuthUser {
   id:           number;
   name:         string;
   email:        string;
-  role:         "contributeur" | "admin";
+  role:         "contributeur" | "admin" | "lingwis";
   contributeur: {
     id:           number;
     pseudo:       string | null;
@@ -140,6 +140,47 @@ export interface Source {
   stats:                 SourceStats;
 }
 
+// ============================================================
+// Types Modération (Phase 8)
+// ============================================================
+
+export interface ModerationCandidate {
+  id:             number;
+  candidate_type: "new_word" | "spelling_variant" | "grammar_pattern" | "expression" | "correction";
+  status:         "pending" | "approved" | "rejected" | "merged";
+  word:           string | null;
+  phonetic:       string | null;
+  pos:            string | null;
+  context:        string | null;
+  examples:       { kr: string; fr?: string }[];
+  variants:       string[];
+  definition_kr:  string | null;
+  definition_fr:  string | null;
+  speaker_count:  number;
+  frequency:      number;
+  linked_mot_id:  number | null;
+  reviewed_by:    number | null;
+  reviewed_at:    string | null;
+  reviewer_note:  string | null;
+  created_at:     string;
+}
+
+export interface ModerationStats {
+  by_status: Record<string, number>;
+  by_type:   Record<string, number>;
+  total:     number;
+}
+
+export interface ModerationReview {
+  status:            "approved" | "rejected" | "merged";
+  word_override?:    string | null;
+  pos_override?:     string | null;
+  definition_kr?:    string | null;
+  definition_fr?:    string | null;
+  merge_with_mot_id?: number | null;
+  reviewer_note?:    string | null;
+}
+
 export interface ScrapeJob {
   id:           number;
   source_id:    number | null;
@@ -167,7 +208,11 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error((body as { message?: string }).message ?? `HTTP ${res.status}`);
+    throw new Error((body as { detail?: string; message?: string }).detail ?? (body as { message?: string }).message ?? `HTTP ${res.status}`);
+  }
+
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return undefined as unknown as T;
   }
 
   return res.json() as Promise<T>;
@@ -465,4 +510,58 @@ export const adminApi = {
 
   bulkDeleteJobs: (token: string, status?: string): Promise<{ deleted: number }> =>
     apiFetch(`${FASTAPI}/admin/scrape/jobs${status ? `?status=${status}` : ""}`, { method: "DELETE", headers: authHeaders(token) }),
+};
+
+// ============================================================
+// Modération linguistique (JWT role: admin | lingwis)
+// ============================================================
+
+export const moderationApi = {
+  /** File d'attente des candidats paginée */
+  getQueue: (
+    token: string,
+    params: { status?: string; candidate_type?: string; page?: number; limit?: number } = {}
+  ): Promise<{ total: number; page: number; limit: number; results: ModerationCandidate[] }> => {
+    const qs = new URLSearchParams();
+    if (params.status)         qs.set("status",         params.status);
+    if (params.candidate_type) qs.set("candidate_type", params.candidate_type);
+    if (params.page)           qs.set("page",           String(params.page));
+    if (params.limit)          qs.set("limit",          String(params.limit));
+    return apiFetch(`${FASTAPI}/moderation/queue?${qs}`, { headers: authHeaders(token) });
+  },
+
+  /** Statistiques de modération */
+  getStats: (token: string): Promise<ModerationStats> =>
+    apiFetch(`${FASTAPI}/moderation/stats`, { headers: authHeaders(token) }),
+
+  /** Réviser un candidat (approuver / rejeter / fusionner) */
+  review: (
+    token: string,
+    candidateId: number,
+    review: ModerationReview
+  ): Promise<{ candidate_id: number; status: string; linked_mot_id: number | null }> =>
+    apiFetch(`${FASTAPI}/moderation/${candidateId}`, {
+      method:  "PATCH",
+      headers: authHeaders(token),
+      body:    JSON.stringify(review),
+    }),
+
+  /** Modifier un mot approuvé (accessible lingwis + admin) */
+  updateMot: (
+    token: string,
+    motId: number,
+    data: { mot_creole?: string; phonetique?: string | null; categorie_gram?: string | null }
+  ): Promise<{ id: number; mot_creole: string; phonetique: string | null; categorie_gram: string | null }> =>
+    apiFetch(`${FASTAPI}/moderation/mots/${motId}`, {
+      method:  "PUT",
+      headers: authHeaders(token),
+      body:    JSON.stringify(data),
+    }),
+
+  /** Supprimer un mot approuvé (accessible lingwis + admin) */
+  deleteMot: (token: string, motId: number): Promise<void> =>
+    apiFetch(`${FASTAPI}/moderation/mots/${motId}`, {
+      method:  "DELETE",
+      headers: authHeaders(token),
+    }),
 };

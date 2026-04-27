@@ -100,8 +100,8 @@ class Fefen:
 
     def _load_data(self) -> None:
         seen: set[str] = set()
-        # Ordre de priorité : dictionnaire Confiant > lexique > corpus
-        for config in ("dictionnaire_confiant", "lexique", "corpus"):
+        # Ordre de priorité : conversations_validated > dictionnaire Confiant > lexique > corpus
+        for config in ("conversations_validated", "dictionnaire_confiant", "lexique", "corpus"):
             path = DATASET_DIR / config / "train.jsonl"
             if not path.exists():
                 log.warning("Dataset introuvable : %s", path)
@@ -114,6 +114,35 @@ class Fefen:
                         seen.add(uid)
                         self._corpus.append(e)
         log.info("Fèfèn : %d entrées chargées depuis %s", len(self._corpus), DATASET_DIR)
+
+    def add_entry(self, entry: dict) -> None:
+        """Ajoute une entrée au corpus et reconstruit l'index TF-IDF en mémoire.
+
+        Appelé après approbation d'un candidat — met à jour l'index sans redémarrage.
+        """
+        uid = entry.get("id", "")
+        if any(e.get("id") == uid for e in self._corpus):
+            return  # déjà présent
+
+        self._corpus.append(entry)
+
+        if self._vectorizer is None:
+            # Pas encore d'index — construire depuis zéro
+            self.build()
+            return
+
+        # Refaire le fit sur tout le corpus (TF-IDF ne supporte pas l'ajout incrémental)
+        texts = [self._entry_text(e) for e in self._corpus]
+        self._vectorizer = TfidfVectorizer(
+            analyzer="word",
+            ngram_range=(1, 2),
+            sublinear_tf=True,
+            min_df=1,
+            max_features=20_000,
+        )
+        self._matrix = self._vectorizer.fit_transform(texts)
+        log.info("Fèfèn : index rebuild après ajout de '%s' (%d entrées)",
+                 entry.get("mot", entry.get("id", "?")), len(self._corpus))
 
     # ------------------------------------------------------------------
     # Récupération des entrées les plus proches (pour le RAG)

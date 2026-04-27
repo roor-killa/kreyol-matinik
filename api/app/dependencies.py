@@ -36,10 +36,32 @@ def get_current_user(
     return user
 
 
+def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_db),
+):
+    """Retourne l'utilisateur connecté, ou None si pas de token valide."""
+    from .models.models import User
+
+    if credentials is None:
+        return None
+    payload = decode_token(credentials.credentials)
+    if payload is None:
+        return None
+    return db.get(User, int(payload["sub"]))
+
+
 def require_admin(current_user=Depends(get_current_user)):
     """Vérifie que l'utilisateur connecté a le rôle admin."""
     if current_user.role.value != "admin":
         raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs")
+    return current_user
+
+
+def require_lingwis(current_user=Depends(get_current_user)):
+    """Vérifie que l'utilisateur a le rôle lingwis ou admin."""
+    if current_user.role.value not in ("admin", "lingwis"):
+        raise HTTPException(status_code=403, detail="Rôle lingwis ou admin requis")
     return current_user
 
 

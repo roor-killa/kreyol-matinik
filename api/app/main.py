@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .routers import admin, chat, dictionary, media, translation
 from .routers.auth import router as auth_router
 from .routers.contributions import router as contributions_router
+from .routers.moderation import router as moderation_router
 from .routers.scrape import router as scrape_router
 
 
@@ -33,14 +34,29 @@ from .routers.scrape import router as scrape_router
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Tables gérées par schema.sql / Docker — pas de create_all ici.
-    # Chargement de Fèfèn (TF-IDF) au démarrage
+    # Chargement de Fèfèn — priorité : pgvector RAG > HuggingFace RAG > TF-IDF
     try:
-        from .fefen import build_fefen
-        app.state.fefen = build_fefen()
-    except Exception as exc:  # noqa: BLE001
+        from .fefen_rag import build_fefen_pgvector
+        fefen_pgvector = build_fefen_pgvector()
+        if fefen_pgvector is not None:
+            app.state.fefen = fefen_pgvector
+            import logging
+            logging.getLogger(__name__).info(
+                "Fèfèn démarré en mode RAG pgvector + GPT-4o"
+            )
+        else:
+            raise ValueError("FefenPGVector non disponible")
+    except Exception as exc:
         import logging
-        logging.getLogger(__name__).warning("Fèfèn non chargé : %s", exc)
-        app.state.fefen = None
+        logging.getLogger(__name__).warning(
+            "FefenPGVector indisponible (%s) — fallback TF-IDF/HF", exc
+        )
+        try:
+            from .fefen import build_fefen
+            app.state.fefen = build_fefen()
+        except Exception as exc2:
+            logging.getLogger(__name__).warning("Fèfèn non chargé : %s", exc2)
+            app.state.fefen = None
 
     # APScheduler — auto-scrape quotidien
     try:
@@ -117,4 +133,5 @@ app.include_router(translation.router, prefix=PREFIX)
 app.include_router(media.router, prefix=PREFIX)
 app.include_router(chat.router, prefix=PREFIX)
 app.include_router(admin.router, prefix=PREFIX)
+app.include_router(moderation_router, prefix=PREFIX)
 app.include_router(scrape_router, prefix=PREFIX)

@@ -22,6 +22,9 @@ interface AuthState {
 
   /** Indique si l'utilisateur a le rôle admin */
   isAdmin: () => boolean;
+
+  /** Indique si l'utilisateur a le rôle lingwis ou admin (accès modération) */
+  isLingwis: () => boolean;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -37,6 +40,11 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: () => get().token !== null,
 
       isAdmin: () => get().user?.role === "admin",
+
+      isLingwis: () => {
+        const role = get().user?.role;
+        return role === "admin" || role === "lingwis";
+      },
     }),
     {
       name: "langmatinitje-auth",
